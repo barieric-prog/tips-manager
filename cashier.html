@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="theme-color" content="#060D1A"/>
+<link rel="manifest" href="manifest.json"/>
+<title>קופת טיפים 💰</title>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+  :root {
+    --bg: #060D1A;
+    --surface: #0F172A;
+    --surface-2: #111827;
+    --border: #1E293B;
+    --border-2: #334155;
+    --pink: #EC4899;
+    --purple: #8B5CF6;
+    --green: #10B981;
+    --yellow: #F59E0B;
+    --blue: #60A5FA;
+    --red: #EF4444;
+    --text: #F1F5F9;
+    --text-2: #94A3B8;
+    --muted: #475569;
+    --dim: #334155;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Assistant', 'Segoe UI', sans-serif;
+    direction: rtl;
+    min-height: 100vh;
+    padding-bottom: 40px;
+  }
+
+  input, button, select { font-family: inherit; }
+
+  /* ── Offline bar ── */
+  #offlineBar {
+    background: var(--red);
+    color: #fff;
+    text-align: center;
+    padding: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    display: none;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-80px);
+    background: #1E293B;
+    color: var(--text);
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    border: 1px solid var(--border-2);
+    z-index: 999;
+    transition: transform .3s ease;
+    white-space: nowrap;
+    box-shadow: 0 8px 30px rgba(0,0,0,.5);
+    max-width: 90vw;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.success { border-color: var(--green); color: var(--green); }
+  #toast.error   { border-color: var(--red);   color: var(--red); }
+
+  /* ── Confirm dialog ── */
+  #confirmOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.7);
+    z-index: 900;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #confirmOverlay.open { display: flex; }
+  .confirm-box {
+    background: var(--surface);
+    border-radius: 20px;
+    padding: 28px 24px;
+    max-width: 320px;
+    width: 100%;
+    border: 1px solid var(--border);
+    text-align: center;
+  }
+  .confirm-box .icon { font-size: 40px; margin-bottom: 12px; }
+  .confirm-box h3 { font-size: 18px; font-weight: 800; margin-bottom: 8px; }
+  .confirm-box p  { font-size: 14px; color: var(--muted); margin-bottom: 24px; line-height: 1.5; }
+  .confirm-btns   { display: flex; gap: 10px; }
+  .btn-confirm-yes {
+    flex: 1; padding: 14px; border-radius: 12px;
+    background: var(--red); color: #fff;
+    border: none; font-weight: 800; font-size: 15px; cursor: pointer;
+  }
+  .btn-confirm-no {
+    flex: 1; padding: 14px; border-radius: 12px;
+    background: var(--border); color: var(--text-2);
+    border: none; font-weight: 700; font-size: 15px; cursor: pointer;
+  }
+
+  /* ─────────── PIN GATE ─────────── */
+  #pinGate {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
+    text-align: center;
+  }
+  #pinGate.hidden { display: none; }
+
+  .pin-logo {
+    width: 72px; height: 72px;
+    background: linear-gradient(135deg, var(--pink), var(--purple));
+    border-radius: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    margin-bottom: 20px;
+    box-shadow: 0 0 40px rgba(236,72,153,.3);
+  }
+  .pin-title { font-size: 22px; font-weight: 900; margin-bottom: 6px; }
+  .pin-sub   { font-size: 13px; color: var(--muted); margin-bottom: 36px; }
+
+  .pin-dots {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    margin-bottom: 32px;
+  }
+  .pin-dot {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--border-2);
+    background: transparent;
+    transition: background .15s, border-color .15s, transform .15s;
+  }
+  .pin-dot.filled {
+    background: var(--pink);
+    border-color: var(--pink);
+    transform: scale(1.1);
+  }
+  .pin-dot.error {
+    background: var(--red);
+    border-color: var(--red);
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%       { transform: translateX(-8px); }
+    40%       { transform: translateX(8px); }
+    60%       { transform: translateX(-6px); }
+    80%       { transform: translateX(6px); }
+  }
+  .pin-dots.shake { animation: shake .4s ease; }
+
+  .numpad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    max-width: 280px;
+    width: 100%;
+  }
+  .num-btn {
+    height: 70px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 24px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .1s, transform .1s, border-color .1s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .num-btn:active { background: var(--border); transform: scale(.95); }
+  .num-btn.zero { grid-column: 2; }
+  .num-btn.del  { grid-column: 3; color: var(--muted); }
+  .num-btn .num-sub { font-size: 9px; font-weight: 600; color: var(--muted); letter-spacing: 1px; }
+
+  #pinError {
+    margin-top: 20px;
+    font-size: 13px;
+    color: var(--red);
+    font-weight: 700;
+    min-height: 20px;
+    transition: opacity .2s;
+  }
+
+  .pin-back {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px;
+  }
+
+  /* ─────────── MAIN APP ─────────── */
+  #app { display: none; }
+  #app.visible { display: block; }
+
+  .page { max-width: 480px; margin: 0 auto; padding: 0 16px 60px; }
+
+  /* Header */
+  .hdr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 0 16px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .hdr-left .title { font-size: 22px; font-weight: 900; }
+  .hdr-left .sub   { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .month-badge {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 10px 16px;
+    text-align: center;
+    border: 1px solid var(--border);
+  }
+  .month-badge .label  { font-size: 9px; color: var(--text-2); letter-spacing: 1px; text-transform: uppercase; font-weight: 700; }
+  .month-badge .amount { font-size: 22px; font-weight: 900; color: #F9A8D4; margin-top: 2px; }
+
+  /* Form card */
+  .form-card {
+    background: var(--surface);
+    border-radius: 20px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .form-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--text-2);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  label {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 700;
+    letter-spacing: .5px;
+    margin-bottom: 6px;
+  }
+
+  input[type=date],
+  input[type=number] {
+    width: 100%;
+    background: var(--border);
+    border: 1px solid var(--border-2);
+    border-radius: 12px;
+    padding: 13px 14px;
+    color: var(--text);
+    font-size: 16px;
+    font-family: inherit;
+    margin-bottom: 18px;
+    direction: ltr;
+    outline: none;
+    -webkit-appearance: none;
+    transition: border-color .15s;
+  }
+  input[type=date]:focus,
+  input[type=number]:focus { border-color: var(--pink); }
+
+  /* Shift selector */
+  .shift-row { display: flex; gap: 10px; margin-bottom: 20px; }
+  .shift-btn {
+    flex: 1;
+    padding: 14px 4px;
+    border-radius: 14px;
+    border: 2px solid var(--border);
+    background: var(--border);
+    color: var(--muted);
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+    text-align: center;
+    transition: all .15s;
+    line-height: 1.4;
+  }
+  .shift-btn .emoji { font-size: 22px; display: block; margin-bottom: 4px; }
+
+  /* Amount quick picks */
+  .quick-amounts {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .quick-btn {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-2);
+    background: var(--border);
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .15s;
+    font-family: inherit;
+  }
+  .quick-btn:active { background: var(--border-2); }
+
+  /* Save button */
+  .save-btn {
+    width: 100%;
+    padding: 18px;
+    border-radius: 16px;
+    border: none;
+    background: linear-gradient(135deg, var(--pink), var(--purple));
+    color: #fff;
+    font-size: 17px;
+    font-weight: 900;
+    cursor: pointer;
+    transition: opacity .2s, transform .15s;
+    font-family: inherit;
+  }
+  .save-btn:disabled { background: var(--border); color: var(--dim); cursor: not-allowed; }
+  .save-btn:not(:disabled):active { transform: scale(.98); }
+  .save-btn.success { background: var(--green); }
+
+  .cancel-btn {
+    width: 100%;
+    margin-top: 10px;
+    padding: 12px;
+    border-radius: 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  /* History */
+  .section-label {
+    font-size: 10px;
+    color: var(--dim);
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  .date-group { margin-bottom: 24px; }
+  .date-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    margin-bottom: 8px;
+    padding: 0 2px;
+  }
+  .date-header .date-total { color: var(--text-2); font-weight: 800; }
+
+  .pool-row {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+    border-right: 4px solid;
+    transition: transform .15s;
+  }
+  .pool-row:active { transform: scale(.99); }
+
+  .pool-emoji { font-size: 24px; margin-left: 12px; }
+  .pool-info  { flex: 1; }
+  .pool-name  { font-weight: 800; color: var(--text); font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .pool-time  { font-size: 10px; color: var(--dim); margin-top: 2px; }
+  .pool-amount { font-weight: 900; font-size: 20px; }
+
+  .action-btns { display: flex; gap: 6px; margin-right: 8px; }
+  .icon-btn {
+    background: var(--border);
+    border: none;
+    border-radius: 8px;
+    padding: 7px 10px;
+    cursor: pointer;
+    font-size: 15px;
+    color: var(--text-2);
+    transition: background .15s;
+    font-family: inherit;
+  }
+  .icon-btn:active { background: var(--border-2); }
+  .icon-btn.del { color: var(--red); }
+
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--dim);
+  }
+  .empty .icon { font-size: 48px; margin-bottom: 12px; }
+  .empty .msg  { font-size: 14px; }
+
+  /* Loading skeleton */
+  .skeleton {
+    background: linear-gradient(90deg, var(--border) 0%, var(--border-2) 50%, var(--border) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 10px;
+    height: 60px;
+    margin-bottom: 8px;
+  }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  /* Sync indicator */
+  .sync-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    display: inline-block;
+    margin-left: 4px;
+  }
+  .sync-dot.offline { background: var(--red); }
+  .sync-dot.syncing {
+    background: var(--yellow);
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: .4; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Offline bar -->
+<div id="offlineBar">⚠️ אין חיבור לאינטרנט</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Confirm dialog -->
+<div id="confirmOverlay">
+  <div class="confirm-box">
+    <div class="icon">🗑️</div>
+    <h3>מחיקת רשומה</h3>
+    <p>האם למחוק את הקופה הזו? פעולה זו אינה ניתנת לביטול.</p>
+    <div class="confirm-btns">
+      <button class="btn-confirm-yes" id="confirmYes">מחק</button>
+      <button class="btn-confirm-no"  id="confirmNo">בטל</button>
+    </div>
+  </div>
+</div>
+
+<!-- PIN Gate -->
+<div id="pinGate">
+  <button class="pin-back" onclick="location.href='index.html'">‹ חזור</button>
+  <div class="pin-logo">💰</div>
+  <div class="pin-title">קופת טיפים</div>
+  <div class="pin-sub">הכנס/י קוד גישה לקופאי</div>
+
+  <div class="pin-dots" id="pinDots">
+    <div class="pin-dot" id="d0"></div>
+    <div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div>
+    <div class="pin-dot" id="d3"></div>
+  </div>
+
+  <div class="numpad">
+    <button class="num-btn" onclick="pinDigit('1')">1</button>
+    <button class="num-btn" onclick="pinDigit('2')">2<span class="num-sub">ABC</span></button>
+    <button class="num-btn" onclick="pinDigit('3')">3<span class="num-sub">DEF</span></button>
+    <button class="num-btn" onclick="pinDigit('4')">4<span class="num-sub">GHI</span></button>
+    <button class="num-btn" onclick="pinDigit('5')">5<span class="num-sub">JKL</span></button>
+    <button class="num-btn" onclick="pinDigit('6')">6<span class="num-sub">MNO</span></button>
+    <button class="num-btn" onclick="pinDigit('7')">7<span class="num-sub">PQR</span></button>
+    <button class="num-btn" onclick="pinDigit('8')">8<span class="num-sub">STU</span></button>
+    <button class="num-btn" onclick="pinDigit('9')">9<span class="num-sub">WXY</span></button>
+    <button class="num-btn zero" onclick="pinDigit('0')">0</button>
+    <button class="num-btn del" onclick="pinDel()">⌫</button>
+  </div>
+
+  <div id="pinError"></div>
+</div>
+
+<!-- Main App -->
+<div id="app">
+  <div class="page">
+    <div class="hdr">
+      <div class="hdr-left">
+        <div class="title">
+          קופת טיפים
+          <span class="sync-dot" id="syncDot"></span>
+        </div>
+        <div class="sub" id="syncLabel">מתחבר...</div>
+      </div>
+      <div class="month-badge">
+        <div class="label">חודש זה</div>
+        <div class="amount" id="monthTotal">₪0</div>
+      </div>
+    </div>
+
+    <!-- Form -->
+    <div class="form-card">
+      <div class="form-title" id="formTitle">➕ רשום קופה חדשה</div>
+
+      <label>📅 תאריך</label>
+      <input type="date" id="dateInput"/>
+
+      <label>⏰ סוג משמרת</label>
+      <div class="shift-row" id="shiftBtns">
+        <button class="shift-btn" id="sb_morning" onclick="selectShift('morning')">
+          <span class="emoji">🌅</span>בוקר
+        </button>
+        <button class="shift-btn" id="sb_evening" onclick="selectShift('evening')">
+          <span class="emoji">🌙</span>ערב
+        </button>
+        <button class="shift-btn" id="sb_double" onclick="selectShift('double')">
+          <span class="emoji">⚡</span>כפולה
+        </button>
+      </div>
+
+      <label>💰 סכום הקופה (₪)</label>
+      <div class="quick-amounts">
+        <button class="quick-btn" onclick="setAmount(300)">₪300</button>
+        <button class="quick-btn" onclick="setAmount(500)">₪500</button>
+        <button class="quick-btn" onclick="setAmount(700)">₪700</button>
+        <button class="quick-btn" onclick="setAmount(1000)">₪1000</button>
+      </div>
+      <input type="number" id="amountInput" placeholder="הכנס סכום..." inputmode="decimal" oninput="updateBtn()"/>
+
+      <button class="save-btn" id="saveBtn" onclick="handleSave()" disabled>
+        💾 שמור קופה
+      </button>
+      <button class="cancel-btn" id="cancelBtn" onclick="cancelEdit()" style="display:none">
+        ✕ בטל עריכה
+      </button>
+    </div>
+
+    <!-- History -->
+    <div class="section-label">היסטוריה</div>
+    <div id="history">
+      <div class="skeleton"></div>
+      <div class="skeleton" style="height:50px"></div>
+      <div class="skeleton" style="height:50px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Firebase ───────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey: "AIzaSyAsWxEHla-9Ar0Ri4H4rXHInuecsAnXmnA",
+  authDomain: "tips-manager-25d5c.firebaseapp.com",
+  databaseURL: "https://tips-manager-25d5c-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "tips-manager-25d5c",
+  storageBucket: "tips-manager-25d5c.firebasestorage.app",
+  messagingSenderId: "724762339117",
+  appId: "1:724762339117:web:2e2a62090bec37675055a4"
+});
+const db = firebase.database();
+
+// ─── Constants ───────────────────────────────────────────────
+const SHIFT = {
+  morning: { label: 'בוקר',  emoji: '🌅', color: '#F59E0B' },
+  evening: { label: 'ערב',   emoji: '🌙', color: '#818CF8' },
+  double:  { label: 'כפולה', emoji: '⚡', color: '#F87171' }
+};
+const DEFAULT_PIN = '1234';
+
+// ─── State ───────────────────────────────────────────────────
+let curShift = 'morning';
+let editId   = null;
+let pools    = {};
+let pinValue = '';
+let savedPin = DEFAULT_PIN;
+let confirmCallback = null;
+
+// ─── Init ────────────────────────────────────────────────────
+const todayStr  = () => new Date().toISOString().split('T')[0];
+const thisMonth = () => new Date().toISOString().slice(0, 7);
+const heDate    = d  => new Date(d).toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' });
+const f0        = n  => Number(n || 0).toFixed(0);
+
+document.getElementById('dateInput').value = todayStr();
+selectShift('morning');
+
+// Load PIN from Firebase then check session
+db.ref('settings/cashierPin').once('value', snap => {
+  savedPin = snap.val() || DEFAULT_PIN;
+  if (sessionStorage.getItem('cashierAuth') === 'ok') {
+    showApp();
+  }
+});
+
+// ─── PIN Gate ────────────────────────────────────────────────
+function pinDigit(d) {
+  if (pinValue.length >= 4) return;
+  pinValue += d;
+  updatePinDots();
+  if (pinValue.length === 4) {
+    setTimeout(validatePin, 150);
+  }
+}
+
+function pinDel() {
+  pinValue = pinValue.slice(0, -1);
+  updatePinDots();
+  document.getElementById('pinError').textContent = '';
+}
+
+function updatePinDots() {
+  for (let i = 0; i < 4; i++) {
+    const dot = document.getElementById('d' + i);
+    dot.className = 'pin-dot' + (i < pinValue.length ? ' filled' : '');
+  }
+}
+
+function validatePin() {
+  if (pinValue === savedPin) {
+    sessionStorage.setItem('cashierAuth', 'ok');
+    showApp();
+  } else {
+    const dots = document.getElementById('pinDots');
+    for (let i = 0; i < 4; i++) {
+      document.getElementById('d' + i).className = 'pin-dot error';
+    }
+    dots.classList.add('shake');
+    document.getElementById('pinError').textContent = 'קוד שגוי, נסה שוב';
+    // Vibrate on mobile
+    if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+    setTimeout(() => {
+      dots.classList.remove('shake');
+      pinValue = '';
+      updatePinDots();
+      document.getElementById('pinError').textContent = '';
+    }, 600);
+  }
+}
+
+function showApp() {
+  document.getElementById('pinGate').classList.add('hidden');
+  document.getElementById('app').classList.add('visible');
+  initApp();
+}
+
+// ─── App init ────────────────────────────────────────────────
+function initApp() {
+  setSyncState('syncing');
+  db.ref('tip_pools').on('value', snap => {
+    pools = snap.val() || {};
+    render();
+    setSyncState('ok');
+    document.getElementById('syncLabel').textContent =
+      'מסונכרן · ' + new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  }, () => setSyncState('offline'));
+}
+
+function setSyncState(state) {
+  const dot = document.getElementById('syncDot');
+  dot.className = 'sync-dot' + (state !== 'ok' ? ' ' + state : '');
+}
+
+// ─── Connectivity ────────────────────────────────────────────
+window.addEventListener('online',  () => {
+  document.getElementById('offlineBar').style.display = 'none';
+  setSyncState('ok');
+});
+window.addEventListener('offline', () => {
+  document.getElementById('offlineBar').style.display = 'block';
+  setSyncState('offline');
+});
+
+// ─── Shift selector ──────────────────────────────────────────
+function selectShift(k) {
+  curShift = k;
+  Object.keys(SHIFT).forEach(key => {
+    const btn = document.getElementById('sb_' + key);
+    if (!btn) return;
+    const s = SHIFT[key];
+    if (key === k) {
+      btn.style.borderColor = s.color;
+      btn.style.background  = s.color + '22';
+      btn.style.color       = s.color;
+    } else {
+      btn.style.borderColor = 'var(--border)';
+      btn.style.background  = 'var(--border)';
+      btn.style.color       = 'var(--muted)';
+    }
+  });
+}
+
+// ─── Amount helpers ──────────────────────────────────────────
+function setAmount(v) {
+  document.getElementById('amountInput').value = v;
+  updateBtn();
+}
+
+function updateBtn() {
+  const v = Number(document.getElementById('amountInput').value);
+  document.getElementById('saveBtn').disabled = !v || v <= 0;
+}
+
+// ─── Save / edit ─────────────────────────────────────────────
+function handleSave() {
+  const amount = Number(document.getElementById('amountInput').value);
+  const date   = document.getElementById('dateInput').value;
+  if (!amount || amount <= 0 || !date) return;
+
+  const id = editId || Date.now();
+  setSyncState('syncing');
+  db.ref('tip_pools/' + id).set({
+    id:        id,
+    date:      date,
+    shiftType: curShift,
+    totalTips: amount,
+    savedAt:   new Date().toISOString()
+  }).then(() => {
+    showToast(editId ? '✏️ קופה עודכנה' : '✅ קופה נשמרה', 'success');
+    document.getElementById('amountInput').value = '';
+    cancelEdit();
+    updateBtn();
+  }).catch(() => showToast('שגיאה בשמירה', 'error'));
+}
+
+function startEdit(id) {
+  const p = pools[id];
+  if (!p) return;
+  editId = p.id;
+  document.getElementById('dateInput').value   = p.date;
+  document.getElementById('amountInput').value = p.totalTips;
+  selectShift(p.shiftType);
+  document.getElementById('cancelBtn').style.display = 'block';
+  document.getElementById('formTitle').textContent   = '✏️ עריכת רשומה';
+  updateBtn();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelEdit() {
+  editId = null;
+  document.getElementById('amountInput').value = '';
+  document.getElementById('cancelBtn').style.display = 'none';
+  document.getElementById('formTitle').textContent   = '➕ רשום קופה חדשה';
+  updateBtn();
+}
+
+function deleteEntry(id) {
+  confirmCallback = () => {
+    setSyncState('syncing');
+    db.ref('tip_pools/' + id).remove()
+      .then(() => showToast('🗑️ רשומה נמחקה', 'success'))
+      .catch(() => showToast('שגיאה במחיקה', 'error'));
+  };
+  document.getElementById('confirmOverlay').classList.add('open');
+}
+
+document.getElementById('confirmYes').onclick = () => {
+  document.getElementById('confirmOverlay').classList.remove('open');
+  if (confirmCallback) { confirmCallback(); confirmCallback = null; }
+};
+document.getElementById('confirmNo').onclick = () => {
+  document.getElementById('confirmOverlay').classList.remove('open');
+  confirmCallback = null;
+};
+
+// ─── Render ──────────────────────────────────────────────────
+function render() {
+  const month = thisMonth();
+  const arr   = Object.values(pools).sort((a, b) => b.date.localeCompare(a.date));
+  const total = arr.filter(p => p.date.startsWith(month)).reduce((s, p) => s + p.totalTips, 0);
+
+  document.getElementById('monthTotal').textContent = '₪' + f0(total);
+
+  const hist = document.getElementById('history');
+
+  if (!arr.length) {
+    hist.innerHTML = `
+      <div class="empty">
+        <div class="icon">😭</div>
+        <div class="msg">אין רשומות עדיין<br><small style="color:var(--dim)">הוסף את הקופה הראשונה</small></div>
+      </div>`;
+    return;
+  }
+
+  const byDate = {};
+  arr.forEach(p => {
+    if (!byDate[p.date]) byDate[p.date] = [];
+    byDate[p.date].push(p);
+  });
+
+  hist.innerHTML = Object.entries(byDate).map(([d, ps]) => {
+    const dt = ps.reduce((s, p) => s + p.totalTips, 0);
+    return `
+      <div class="date-group">
+        <div class="date-header">
+          <span>${heDate(d)}</span>
+          <span class="date-total">₪${f0(dt)}</span>
+        </div>
+        ${ps.map(pool => {
+          const sc = SHIFT[pool.shiftType] || SHIFT.morning;
+          const time = new Date(pool.savedAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+          return `
+            <div class="pool-row" style="border-right-color:${sc.color}">
+              <span class="pool-emoji">${sc.emoji}</span>
+              <div class="pool-info">
+                <div class="pool-name">
+                  <span>${sc.label}</span>
+                  <span class="pool-amount" style="color:${sc.color}">₪${f0(pool.totalTips)}</span>
+                </div>
+                <div class="pool-time">נשמר ${time}</div>
+              </div>
+              <div class="action-btns">
+                <button class="icon-btn" onclick="startEdit(${pool.id})">✏️</button>
+                <button class="icon-btn del" onclick="deleteEntry(${pool.id})">🗑️</button>
+              </div>
+            </div>`;
+        }).join('')}
+      </div>`;
+  }).join('');
+}
+
+// ─── Toast ───────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className   = 'show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, 2800);
+}
+</script>
+</body>
+</html>

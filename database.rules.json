@@ -1,0 +1,31 @@
+{
+  "rules": {
+    // Manager-only paths require Firebase Auth
+    "employees": {
+      ".read":  "auth != null",
+      ".write": "auth != null"
+    },
+    "distributions": {
+      ".read":  "auth != null",
+      ".write": "auth != null"
+    },
+    "pinukim": {
+      ".read":  "auth != null",
+      ".write": "auth != null"
+    },
+    "shifts": {
+      ".read":  "auth != null",
+      ".write": "auth != null"
+    },
+    // Settings readable by anyone (needed for cashier PIN check), writable by manager only
+    "settings": {
+      ".read":  true,
+      ".write": "auth != null"
+    },
+    // Tip pools: cashier can write, manager can read/write
+    "tip_pools": {
+      ".read":  true,
+      ".write": true
+    }
+  }
+}

@@ -1,0 +1,1525 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="theme-color" content="#060D1A"/>
+<link rel="manifest" href="manifest.json"/>
+<title>מנהל טיפים 📊</title>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<style>
+:root {
+  --bg:       #060D1A;
+  --surf1:    #0F172A;
+  --surf2:    #111827;
+  --border:   #1E293B;
+  --border2:  #334155;
+  --pink:     #EC4899;
+  --purple:   #8B5CF6;
+  --green:    #10B981;
+  --yellow:   #F59E0B;
+  --blue:     #60A5FA;
+  --red:      #EF4444;
+  --text:     #F1F5F9;
+  --text2:    #94A3B8;
+  --muted:    #475569;
+  --dim:      #334155;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { background: var(--bg); min-height: 100vh; }
+body {
+  color: var(--text);
+  font-family: 'Assistant', 'Segoe UI', sans-serif;
+  direction: rtl;
+  padding-bottom: 80px;
+}
+input, button, select, textarea { font-family: inherit; }
+
+/* ── Offline ── */
+#offlineBar {
+  background: var(--red); color: #fff;
+  text-align: center; padding: 8px;
+  font-size: 12px; font-weight: 700;
+  display: none; position: sticky; top: 0; z-index: 50;
+}
+
+/* ── Toast ── */
+#toast {
+  position: fixed; top: 16px; left: 50%;
+  transform: translateX(-50%) translateY(-80px);
+  background: var(--surf1); color: var(--text);
+  padding: 12px 20px; border-radius: 12px;
+  font-size: 14px; font-weight: 700;
+  border: 1px solid var(--border2); z-index: 9999;
+  transition: transform .3s ease; white-space: nowrap;
+  box-shadow: 0 8px 30px rgba(0,0,0,.5); max-width: 90vw;
+}
+#toast.show  { transform: translateX(-50%) translateY(0); }
+#toast.success { border-color: var(--green); color: var(--green); }
+#toast.error   { border-color: var(--red);   color: var(--red); }
+
+/* ── Confirm ── */
+#confirmOverlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.7);
+  z-index: 900; display: none;
+  align-items: center; justify-content: center; padding: 20px;
+}
+#confirmOverlay.open { display: flex; }
+.confirm-box {
+  background: var(--surf1); border-radius: 20px;
+  padding: 28px 24px; max-width: 320px; width: 100%;
+  border: 1px solid var(--border); text-align: center;
+}
+.confirm-box .conf-icon { font-size: 40px; margin-bottom: 12px; }
+.confirm-box h3 { font-size: 18px; font-weight: 800; margin-bottom: 8px; }
+.confirm-box p  { font-size: 14px; color: var(--muted); margin-bottom: 24px; line-height: 1.5; }
+.conf-btns { display: flex; gap: 10px; }
+.btn-yes { flex:1; padding:14px; border-radius:12px; background:var(--red); color:#fff; border:none; font-weight:800; font-size:15px; cursor:pointer; }
+.btn-no  { flex:1; padding:14px; border-radius:12px; background:var(--border); color:var(--text2); border:none; font-weight:700; font-size:15px; cursor:pointer; }
+
+/* ── Login ── */
+#loginScreen {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; padding: 20px;
+}
+.login-box {
+  background: var(--surf1); border-radius: 24px;
+  padding: 36px 28px; max-width: 360px; width: 100%;
+  border: 1px solid var(--border); text-align: center;
+}
+.login-logo {
+  width: 72px; height: 72px;
+  background: linear-gradient(135deg, var(--pink), var(--purple));
+  border-radius: 22px; font-size: 38px;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 20px;
+  box-shadow: 0 0 40px rgba(236,72,153,.25);
+}
+.login-title { font-size: 24px; font-weight: 900; margin-bottom: 6px; }
+.login-sub   { font-size: 13px; color: var(--muted); margin-bottom: 32px; }
+.google-btn {
+  width: 100%; padding: 15px; border-radius: 14px;
+  border: none; background: #fff; color: #1a1a1a;
+  font-size: 15px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  transition: opacity .2s;
+}
+.google-btn:active { opacity: .8; }
+.login-note { color: var(--dim); font-size: 11px; margin-top: 10px; }
+
+/* ── App shell ── */
+#appScreen { display: none; }
+
+/* ── Navigation ── */
+nav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: #070E1D; border-top: 1px solid var(--border);
+  display: flex; justify-content: space-around;
+  padding: 8px 0 16px; z-index: 100;
+  backdrop-filter: blur(10px);
+}
+.nav-btn {
+  display: flex; flex-direction: column; align-items: center;
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  padding: 6px 10px; border-radius: 12px; min-width: 56px;
+  font-size: 10px; gap: 3px; font-weight: 700; transition: color .15s;
+}
+.nav-btn .nav-icon { font-size: 22px; line-height: 1; }
+.nav-btn.active { color: #F9A8D4; }
+.nav-btn.active .nav-icon { filter: drop-shadow(0 0 6px rgba(249,168,212,.5)); }
+
+/* ── Pages ── */
+.page { max-width: 480px; margin: 0 auto; padding: 0 16px 20px; display: none; }
+.page.active { display: block; }
+
+/* ── Common components ── */
+.hdr {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 20px 0 16px;
+}
+.htitle { font-size: 24px; font-weight: 900; }
+.hsub   { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+.card {
+  background: var(--surf2); border-radius: 14px;
+  padding: 14px; border: 1px solid var(--border); margin-bottom: 10px;
+}
+.form-card {
+  background: var(--surf2); border-radius: 16px;
+  padding: 16px; margin-bottom: 14px; border: 1px solid var(--border2);
+}
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+
+.stat-card {
+  background: var(--surf2); border-radius: 14px;
+  padding: 14px; border: 1px solid var(--border);
+  border-top: 3px solid;
+}
+.stat-label { font-size: 10px; color: var(--muted); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+.stat-val   { font-size: 22px; font-weight: 900; margin-top: 4px; }
+.stat-sub   { font-size: 10px; color: var(--dim); margin-top: 2px; }
+
+.slabel {
+  font-size: 10px; color: var(--dim); font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase;
+  margin-bottom: 10px; margin-top: 4px;
+}
+
+.row {
+  background: var(--surf2); border-radius: 12px;
+  padding: 12px 14px; display: flex; align-items: center;
+  margin-bottom: 6px; border: 1px solid var(--border);
+  cursor: pointer; transition: background .15s;
+}
+.row:active { background: var(--border); }
+
+label { display: block; font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 5px; }
+
+input[type=text],
+input[type=number],
+input[type=date],
+input[type=month],
+input[type=password],
+select {
+  width: 100%; background: var(--border); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 11px 12px; color: var(--text);
+  font-size: 14px; margin-bottom: 12px; outline: none;
+  direction: ltr; -webkit-appearance: none;
+  transition: border-color .15s;
+}
+input:focus, select:focus { border-color: var(--pink); }
+
+input[type=range] {
+  width: 100%; margin-bottom: 10px;
+  accent-color: var(--pink); background: transparent; border: none;
+}
+
+.btn-pink { background: var(--pink); color: #fff; border: none; border-radius: 20px; padding: 8px 16px; font-weight: 700; cursor: pointer; font-size: 13px; }
+.btn-full { width: 100%; background: var(--pink); color: #fff; border: none; border-radius: 10px; padding: 13px; font-weight: 700; cursor: pointer; font-size: 14px; margin-bottom: 8px; transition: opacity .2s; }
+.btn-full:active { opacity: .85; }
+.btn-sec  { background: var(--border); color: var(--text2); border: 1px solid var(--border2); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 12px; font-weight: 700; }
+.btn-cancel { padding: 12px 18px; background: var(--border); color: var(--muted); border: none; border-radius: 10px; cursor: pointer; font-size: 14px; }
+
+.toggle { width: 48px; height: 26px; border-radius: 99px; border: none; cursor: pointer; position: relative; transition: background .2s; flex-shrink: 0; }
+.toggle .knob { width: 20px; height: 20px; border-radius: 50%; background: #fff; position: absolute; top: 3px; transition: left .2s; }
+
+.pill { font-size: 10px; border-radius: 99px; padding: 2px 8px; display: inline-block; }
+.bar-bg { background: var(--border); border-radius: 99px; height: 6px; overflow: hidden; margin-top: 5px; }
+.bar-fill { height: 100%; border-radius: 99px; transition: width .4s ease; }
+
+.empty { text-align: center; padding: 50px 20px; color: var(--dim); }
+.empty .ei { font-size: 48px; margin-bottom: 12px; }
+
+/* Shift type buttons */
+.shift-type-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.stype-btn {
+  flex: 1; padding: 10px 0; border-radius: 12px;
+  border: 2px solid var(--border); background: var(--border);
+  color: var(--muted); font-weight: 700; font-size: 12px; cursor: pointer;
+  transition: all .15s;
+}
+
+/* Pool cards */
+.pool-card {
+  background: var(--surf2); border-radius: 12px;
+  padding: 14px; border: 1px solid var(--border); margin-bottom: 8px;
+  border-right: 4px solid;
+}
+.pool-row-inner {
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+}
+.pool-detail { display: none; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+.pool-detail.open { display: block; }
+
+/* Distribution modal */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 999; overflow-y: auto; direction: rtl; display: none; }
+.modal.open { display: block; }
+.modal-inner { background: #07101F; min-height: 100%; max-width: 480px; margin: 0 auto; padding-bottom: 40px; }
+.modal-hdr {
+  background: var(--surf1); border-bottom: 1px solid var(--border);
+  padding: 16px 18px; display: flex; justify-content: space-between; align-items: center;
+  position: sticky; top: 0; z-index: 10;
+}
+.dist-input {
+  width: 80px; background: var(--border); border: 1px solid var(--border2);
+  border-radius: 8px; padding: 6px 8px; color: #F9A8D4; font-weight: 800;
+  font-size: 15px; text-align: center; direction: ltr; outline: none; font-family: inherit;
+}
+.output-box {
+  background: var(--bg); border-radius: 10px; padding: 12px;
+  font-size: 14px; color: #E2E8F0; line-height: 2;
+  margin-bottom: 10px; white-space: pre-wrap; direction: rtl; min-height: 60px;
+}
+.copy-btn {
+  width: 100%; padding: 12px; border-radius: 12px; border: none;
+  background: #1E3A5F; color: #fff; font-weight: 700; font-size: 14px;
+  cursor: pointer; transition: background .2s; font-family: inherit;
+}
+.copy-btn.ok { background: var(--green); }
+
+/* Settings */
+.settings-section { margin-bottom: 24px; }
+.settings-title {
+  font-size: 12px; font-weight: 700; color: var(--muted);
+  letter-spacing: 1.5px; text-transform: uppercase;
+  margin-bottom: 12px; padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-row {
+  background: var(--surf2); border-radius: 12px;
+  padding: 14px 16px; border: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.pin-display {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 12px;
+}
+.pin-dots-small {
+  display: flex; gap: 6px;
+}
+.pin-dot-sm {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--pink);
+}
+
+/* Salary */
+.deduction-row {
+  display: flex; justify-content: space-between;
+  padding: 7px 0; border-bottom: 1px solid var(--border);
+}
+.deduction-row:last-child { border-bottom: none; }
+</style>
+</head>
+<body>
+
+<div id="offlineBar">⚠️ אין חיבור לאינטרנט</div>
+<div id="toast"></div>
+
+<!-- Confirm dialog -->
+<div id="confirmOverlay">
+  <div class="confirm-box">
+    <div class="conf-icon" id="confirmIcon">🗑️</div>
+    <h3 id="confirmTitle">מחיקה</h3>
+    <p id="confirmMsg">האם למחוק? פעולה זו אינה ניתנת לביטול.</p>
+    <div class="conf-btns">
+      <button class="btn-yes" id="confirmYes">אישור</button>
+      <button class="btn-no"  id="confirmNo">בטל</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">🍕</div>
+    <div class="login-title">מנהל טיפים</div>
+    <div class="login-sub">כניסה מאובטחת עם Google</div>
+    <button class="google-btn" onclick="signIn()">
+      <svg width="18" height="18" viewBox="0 0 48 48">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      </svg>
+      התחבר עם Google
+    </button>
+    <div class="login-note">אין שמירת סיסמאות אצל Google</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appScreen">
+
+  <!-- TIPS TAB -->
+  <div id="page-tips" class="page active">
+    <div class="hdr">
+      <div>
+        <div class="htitle">קופת טיפים</div>
+        <div class="hsub" id="syncLabel">מתחבר...</div>
+      </div>
+      <button style="background:var(--surf1);border:1px solid #1E3A5F;border-radius:20px;padding:7px 14px;color:var(--blue);font-size:13px;font-weight:700;cursor:pointer" onclick="reloadPools()">
+        🔄 רענן
+      </button>
+    </div>
+
+    <div class="grid2">
+      <div class="stat-card" style="border-top-color:var(--pink)">
+        <div class="stat-label">קופה חודשית</div>
+        <div class="stat-val" id="tips-total">₪0</div>
+        <div class="stat-sub" id="tips-count">0 משמרות</div>
+      </div>
+      <div class="stat-card" style="border-top-color:var(--purple)">
+        <div class="stat-label">פינוקים</div>
+        <div class="stat-val" id="tips-pinuk">₪0</div>
+        <div class="stat-sub">ניכויים מהקופה</div>
+      </div>
+    </div>
+
+    <div class="slabel">חלוקה לעובדים — חודש זה</div>
+    <div id="empChart" class="card" style="margin-bottom:20px"></div>
+
+    <div class="slabel">קופות</div>
+    <div id="poolsList"></div>
+  </div>
+
+  <!-- SHIFTS TAB -->
+  <div id="page-shifts" class="page">
+    <div class="hdr">
+      <div class="htitle">משמרות</div>
+      <button class="btn-pink" onclick="toggleEl('addShiftForm')">+ הוסף</button>
+    </div>
+
+    <div id="addShiftForm" style="display:none" class="form-card">
+      <label>עובד</label>
+      <select id="shiftEmpSel" onchange="calcPreview()"></select>
+      <label>תאריך</label>
+      <input type="date" id="shiftDate"/>
+      <label>משמרת</label>
+      <div class="shift-type-row" id="shiftTypeBtns"></div>
+      <label>סוג יום</label>
+      <select id="shiftDayType" onchange="calcPreview()">
+        <option value="regular">רגיל</option>
+        <option value="friday">שישי/ערב חג (×1.5)</option>
+        <option value="saturday">שבת/חג (×1.5)</option>
+        <option value="motzash">מוצ"ש (×1.25)</option>
+      </select>
+      <label>שעות: <strong id="hoursVal" style="color:#F9A8D4">7</strong></label>
+      <input type="range" min="1" max="14" value="7" id="hoursRange"
+        oninput="document.getElementById('hoursVal').textContent=this.value;calcPreview()"/>
+      <div class="card" style="display:flex;justify-content:space-between;padding:10px 14px;margin-bottom:12px">
+        <span style="color:var(--text2);font-size:12px">שכר משמרת</span>
+        <span id="previewWage" style="color:var(--green);font-weight:800">₪0</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-full" style="margin-bottom:0" onclick="saveShift()">✓ שמור</button>
+        <button class="btn-cancel" onclick="toggleEl('addShiftForm')">בטל</button>
+      </div>
+    </div>
+
+    <div id="shiftsList"></div>
+  </div>
+
+  <!-- EMPLOYEES TAB -->
+  <div id="page-employees" class="page">
+    <div class="hdr">
+      <div class="htitle">עובדים</div>
+      <button class="btn-pink" onclick="toggleEl('addEmpForm')">+ הוסף</button>
+    </div>
+
+    <div id="addEmpForm" style="display:none" class="form-card">
+      <label>שם מלא</label>
+      <input type="text" id="empName" placeholder="שם..."/>
+      <label>תפקיד</label>
+      <select id="empRole">
+        <option value="waiter">מלצר</option>
+        <option value="bartender">ברמן</option>
+        <option value="host">מארח/ת</option>
+        <option value="kitchen">מטבח</option>
+      </select>
+      <label>שכר שעתי</label>
+      <input type="number" id="empWage" value="35"/>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--border);border-radius:12px;padding:12px 14px;margin-bottom:12px">
+        <div>
+          <div style="color:var(--text);font-weight:700;font-size:13px">מתמחה / קטין</div>
+          <div style="color:var(--muted);font-size:11px">שכר מינימום לפי גיל</div>
+        </div>
+        <button class="toggle" id="traineeToggle" style="background:var(--dim)" onclick="toggleNewTrainee()">
+          <div class="knob" id="traineeKnob" style="left:4px"></div>
+        </button>
+      </div>
+      <div id="ageCatWrap" style="display:none">
+        <label>קטגוריית גיל</label>
+        <select id="ageCatSel">
+          <option value="adult">מבוגר 18+ — ₪35.40</option>
+          <option value="youth18">נוער 17-18 — ₪30.92</option>
+          <option value="youth17">נוער 16-17 — ₪27.94</option>
+          <option value="youth16">נוער עד 16 — ₪25.27</option>
+          <option value="apprentice">חניך — ₪21.67</option>
+        </select>
+      </div>
+      <button class="btn-full" onclick="saveEmp()">הוסף עובד</button>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:10px">שכר מינימום לפי גיל — אפריל 2026</div>
+      <div id="minWageTable"></div>
+    </div>
+    <div id="empList"></div>
+  </div>
+
+  <!-- SALARY TAB -->
+  <div id="page-salary" class="page">
+    <div class="hdr"><div class="htitle">חישוב שכר</div></div>
+    <input type="month" id="salaryMonth" onchange="renderSalary()"/>
+    <div id="salaryTotals" class="card" style="padding:14px;margin-bottom:14px"></div>
+    <div id="salaryList"></div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div id="page-settings" class="page">
+    <div class="hdr">
+      <div>
+        <div class="htitle">הגדרות</div>
+        <div class="hsub" id="settingsUserName"></div>
+      </div>
+      <button onclick="signOut()" style="background:var(--border);border:1px solid var(--border2);border-radius:10px;padding:8px 14px;color:var(--red);font-size:12px;font-weight:700;cursor:pointer">
+        יציאה
+      </button>
+    </div>
+
+    <!-- PIN Management -->
+    <div class="settings-section">
+      <div class="settings-title">🔒 קוד גישה לקופאי</div>
+      <div class="settings-row">
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px">קוד גישה נוכחי</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:14px">
+          הקוד שהקופאי/ת מכניסים בכניסה לממשק הקופה
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+          <div id="currentPinDisplay" style="font-size:28px;font-weight:900;color:var(--pink);letter-spacing:8px">
+            ••••
+          </div>
+          <button onclick="togglePinVisibility()" id="togglePinBtn"
+            style="background:var(--border);border:1px solid var(--border2);border-radius:8px;padding:6px 12px;color:var(--text2);font-size:12px;font-weight:700;cursor:pointer">
+            👁 הצג
+          </button>
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:14px">
+          <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:12px">שינוי קוד</div>
+          <label>קוד חדש (4 ספרות)</label>
+          <input type="password" id="newPinInput" placeholder="הכנס קוד חדש" maxlength="4" inputmode="numeric"
+            pattern="[0-9]{4}" style="direction:ltr;letter-spacing:8px;font-size:20px;font-weight:800"/>
+          <label>אישור קוד</label>
+          <input type="password" id="confirmPinInput" placeholder="אשר קוד" maxlength="4" inputmode="numeric"
+            pattern="[0-9]{4}" style="direction:ltr;letter-spacing:8px;font-size:20px;font-weight:800"/>
+          <button class="btn-full" onclick="savePin()" style="background:linear-gradient(135deg,var(--pink),var(--purple))">
+            🔑 עדכן קוד גישה
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- App info -->
+    <div class="settings-section">
+      <div class="settings-title">📱 אפליקציה</div>
+      <div class="settings-row">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:13px;color:var(--text2)">גרסה</span>
+          <span style="font-size:13px;font-weight:700;color:var(--dim)">v2.0.0</span>
+        </div>
+      </div>
+      <div class="settings-row" style="margin-top:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:13px;color:var(--text2)">Firebase Project</span>
+          <span style="font-size:11px;font-weight:700;color:var(--dim)">tips-manager-25d5c</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Distribution Modal -->
+  <div id="distModal" class="modal">
+    <div class="modal-inner">
+      <div class="modal-hdr">
+        <div>
+          <div style="font-size:18px;font-weight:900">חלוקת קופה</div>
+          <div id="distSub" style="font-size:12px;color:var(--muted)"></div>
+        </div>
+        <button class="btn-sec" onclick="closeModal()">✕ סגור</button>
+      </div>
+      <div id="distBody" style="padding:0 16px"></div>
+    </div>
+  </div>
+
+  <!-- Bottom Nav -->
+  <nav>
+    <button class="nav-btn active" id="nav-tips"      onclick="switchTab('tips')">
+      <span class="nav-icon">💸</span>קופות
+    </button>
+    <button class="nav-btn"        id="nav-shifts"    onclick="switchTab('shifts')">
+      <span class="nav-icon">🗓️</span>משמרות
+    </button>
+    <button class="nav-btn"        id="nav-employees" onclick="switchTab('employees')">
+      <span class="nav-icon">👥</span>עובדים
+    </button>
+    <button class="nav-btn"        id="nav-salary"    onclick="switchTab('salary')">
+      <span class="nav-icon">💰</span>שכר
+    </button>
+    <button class="nav-btn"        id="nav-settings"  onclick="switchTab('settings')">
+      <span class="nav-icon">⚙️</span>הגדרות
+    </button>
+  </nav>
+</div>
+
+<script>
+// ─── Firebase ────────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey: "AIzaSyAsWxEHla-9Ar0Ri4H4rXHInuecsAnXmnA",
+  authDomain: "tips-manager-25d5c.firebaseapp.com",
+  databaseURL: "https://tips-manager-25d5c-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "tips-manager-25d5c",
+  storageBucket: "tips-manager-25d5c.firebasestorage.app",
+  messagingSenderId: "724762339117",
+  appId: "1:724762339117:web:2e2a62090bec37675055a4"
+});
+const db   = firebase.database();
+const auth = firebase.auth();
+
+// ─── Constants ───────────────────────────────────────────────
+const MIN_WAGE = {
+  adult:      { label: 'מבוגר 18+',  wage: 35.40, color: '#10B981' },
+  youth18:    { label: 'נוער 17-18', wage: 30.92, color: '#60A5FA' },
+  youth17:    { label: 'נוער 16-17', wage: 27.94, color: '#A78BFA' },
+  youth16:    { label: 'נוער עד 16', wage: 25.27, color: '#F9A8D4' },
+  apprentice: { label: 'חניך',       wage: 21.67, color: '#FCD34D' }
+};
+const SHIFT = {
+  morning: { label: 'בוקר',  emoji: '🌅', color: '#F59E0B' },
+  evening: { label: 'ערב',   emoji: '🌙', color: '#818CF8' },
+  double:  { label: 'כפולה', emoji: '⚡', color: '#F87171' }
+};
+const DAY = {
+  regular:  { label: 'רגיל',    m: 1    },
+  friday:   { label: 'שישי',    m: 1.5  },
+  saturday: { label: 'שבת',     m: 1.5  },
+  motzash:  { label: 'מוצ"ש', m: 1.25 }
+};
+const ROLES = {
+  waiter:    { label: 'מלצר',   emoji: '🍽️' },
+  bartender: { label: 'ברמן',   emoji: '🍸' },
+  host:      { label: 'מארח/ת', emoji: '🙂' },
+  kitchen:   { label: 'מטבח',   emoji: '👨‍🍳' }
+};
+const EXCL   = ['host', 'kitchen'];
+const COLORS = ['#EC4899','#818CF8','#6366F1','#3B82F6','#10B981','#F59E0B','#F87171'];
+
+// ─── State ───────────────────────────────────────────────────
+let pools = {}, employees = {}, shifts = {}, pinukim = {}, distributions = {};
+let currentPin    = '1234';
+let pinVisible    = false;
+let newTrainee    = false;
+let selShift      = 'morning';
+let curPool       = null;
+let distRows      = [];
+let confirmCallback = null;
+
+// ─── Helpers ─────────────────────────────────────────────────
+const f0 = n => Number(n || 0).toFixed(0);
+const f2 = n => Number(n || 0).toFixed(2);
+const todayStr  = () => new Date().toISOString().split('T')[0];
+const thisMonth = () => new Date().toISOString().slice(0, 7);
+const heDate    = d => new Date(d).toLocaleDateString('he-IL', { weekday: 'short', day: 'numeric', month: 'short' });
+
+function effWage(emp) {
+  if (!emp.trainee) return emp.wage;
+  if (emp.traineeWageOverride != null) return emp.traineeWageOverride;
+  return MIN_WAGE[emp.ageCategory || 'adult']?.wage || 35.40;
+}
+
+function wageCalc(h, rate, dt) {
+  const m    = (DAY[dt || 'regular'] || DAY.regular).m;
+  const norm = Math.min(h, 8);
+  const ot1  = Math.max(0, Math.min(h - norm, 2));
+  const ot2  = Math.max(0, h - norm - 2);
+  return norm * rate * m + ot1 * rate * 1.25 * m + ot2 * rate * 1.5 * m;
+}
+
+function incomeTax(g) {
+  const b = [{u:6790,r:.10},{u:9730,r:.14},{u:15620,r:.20},{u:21710,r:.31},{u:44765,r:.35},{u:57320,r:.47},{u:1e9,r:.50}];
+  let t = 0, p = 0;
+  for (const bk of b) {
+    if (g <= p) break;
+    t += (Math.min(g, bk.u) - p) * bk.r;
+    p = bk.u;
+  }
+  return Math.max(0, t - 575);
+}
+
+function ded(g) {
+  const pension = g * .06,  edu    = g * .025;
+  const bl      = g * .0345, health = g * .05;
+  const tax     = incomeTax(g);
+  return { pension, edu, bl, health, tax, total: pension + edu + bl + health + tax };
+}
+
+function calcDist(pool) {
+  const pks  = Object.values(pinukim[pool.id] || {});
+  const tp   = pks.reduce((a, p) => a + p.amount, 0);
+  const net  = Math.max(0, pool.totalTips - tp);
+  const ds   = Object.values(shifts).filter(s => s.date === pool.date && s.shiftType === pool.shiftType);
+  if (!ds.length) return { dist: [], net, tp };
+
+  const weighted = ds.map(s => {
+    const emp = Object.values(employees).find(e => e.id === s.employeeId);
+    const ew  = emp ? effWage(emp) : 35.40;
+    return { shift: s, emp, hours: s.hours, ew, weight: s.hours * ew };
+  });
+  const tw = weighted.reduce((a, w) => a + w.weight, 0);
+  if (!tw) return { dist: [], net, tp };
+
+  return {
+    dist: weighted.map(w => ({ ...w, ratio: w.weight / tw, share: net * (w.weight / tw) })),
+    net, tp
+  };
+}
+
+// ─── Auth ────────────────────────────────────────────────────
+function signIn() {
+  const p = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(p).catch(e => showToast('שגיאה: ' + e.message, 'error'));
+}
+function signOut() {
+  showConfirm('🚪 יציאה', 'האם לצאת מהמערכת?', () => {
+    auth.signOut().then(() => location.reload());
+  });
+}
+
+auth.onAuthStateChanged(user => {
+  if (user) {
+    document.getElementById('loginScreen').style.display  = 'none';
+    document.getElementById('appScreen').style.display    = 'block';
+    document.getElementById('settingsUserName').textContent = user.displayName || user.email;
+    initApp();
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('appScreen').style.display   = 'none';
+  }
+});
+
+// ─── App init ────────────────────────────────────────────────
+function initApp() {
+  db.ref('tip_pools').on('value', snap => {
+    pools = snap.val() || {};
+    renderAll();
+    document.getElementById('syncLabel').textContent = 'מסונכרן · ' + new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  });
+  db.ref('employees').on('value',     snap => { employees     = snap.val() || {}; renderAll(); });
+  db.ref('shifts').on('value',        snap => { shifts        = snap.val() || {}; renderAll(); });
+  db.ref('pinukim').on('value',       snap => { pinukim       = snap.val() || {}; renderTips(); });
+  db.ref('distributions').on('value', snap => { distributions = snap.val() || {}; renderTips(); });
+  db.ref('settings/cashierPin').on('value', snap => {
+    currentPin = snap.val() || '1234';
+    renderPinDisplay();
+  });
+
+  // Static setup
+  buildMinWageTable();
+  renderShiftTypeBtns();
+  document.getElementById('shiftDate').value    = todayStr();
+  document.getElementById('salaryMonth').value  = thisMonth();
+}
+
+function reloadPools() {
+  db.ref('tip_pools').once('value', snap => {
+    pools = snap.val() || {};
+    renderTips();
+    document.getElementById('syncLabel').textContent = 'עודכן · ' + new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    showToast('🔄 קופות עודכנו');
+  });
+}
+
+window.addEventListener('online',  () => { document.getElementById('offlineBar').style.display = 'none'; });
+window.addEventListener('offline', () => { document.getElementById('offlineBar').style.display = 'block'; });
+
+// ─── Navigation ──────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + tab).classList.add('active');
+  document.getElementById('nav-' + tab).classList.add('active');
+  if (tab === 'salary') renderSalary();
+}
+
+function toggleEl(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function renderAll() { renderTips(); renderShifts(); renderEmployees(); }
+
+// ─── TIPS PAGE ───────────────────────────────────────────────
+function renderTips() {
+  const month = thisMonth();
+  const mp    = Object.values(pools).filter(p => p.date?.startsWith(month));
+  const total = mp.reduce((a, p) => a + p.totalTips, 0);
+  const tp    = mp.reduce((a, p) => a + Object.values(pinukim[p.id] || {}).reduce((x, k) => x + k.amount, 0), 0);
+
+  document.getElementById('tips-total').textContent = '₪' + f0(total);
+  document.getElementById('tips-count').textContent = mp.length + ' משמרות';
+  document.getElementById('tips-pinuk').textContent = '₪' + f0(tp);
+
+  // Employee tips chart
+  const empArr = Object.values(employees);
+  const empTips = Object.fromEntries(empArr.map(e => [e.id, 0]));
+  mp.forEach(pool => calcDist(pool).dist.forEach(d => {
+    if (d.emp) empTips[d.emp.id] = (empTips[d.emp.id] || 0) + d.share;
+  }));
+  const maxT = Math.max(...Object.values(empTips), 1);
+
+  document.getElementById('empChart').innerHTML = empArr.length
+    ? empArr.map(emp => {
+        const t  = empTips[emp.id] || 0;
+        const ac = emp.trainee ? MIN_WAGE[emp.ageCategory || 'adult'] : null;
+        const c  = ac ? ac.color : '#EC4899';
+        return `
+          <div style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span>${ROLES[emp.role]?.emoji || '🤷'}</span>
+                <span style="font-size:13px;color:#CBD5E1">${emp.name}</span>
+                ${ac ? `<span class="pill" style="color:${c};background:var(--border)">${ac.label}</span>` : ''}
+              </div>
+              <span style="font-weight:800;color:#F9A8D4;font-size:13px">₪${f2(t)}</span>
+            </div>
+            <div class="bar-bg"><div class="bar-fill" style="width:${(t / maxT * 100)}%;background:${c}"></div></div>
+          </div>`;
+      }).join('')
+    : '<div style="color:var(--dim);font-size:12px;text-align:center">אין עובדים</div>';
+
+  // Pools list
+  const allPools = Object.values(pools).sort((a, b) => b.date.localeCompare(a.date));
+  if (!allPools.length) {
+    document.getElementById('poolsList').innerHTML = `
+      <div class="empty"><div class="ei">😭</div><div>אין קופות עדיין</div></div>`;
+    return;
+  }
+
+  const byDate = {};
+  allPools.forEach(p => { if (!byDate[p.date]) byDate[p.date] = []; byDate[p.date].push(p); });
+
+  document.getElementById('poolsList').innerHTML = Object.entries(byDate).map(([d, ps]) => {
+    const dt = ps.reduce((a, p) => a + p.totalTips, 0);
+    return `
+      <div style="margin-bottom:24px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--dim);margin-bottom:8px;padding:0 2px">
+          <span>${heDate(d)}</span><span style="color:var(--text2)">₪${f0(dt)}</span>
+        </div>
+        ${ps.map(pool => buildPoolCard(pool)).join('')}
+      </div>`;
+  }).join('');
+}
+
+function buildPoolCard(pool) {
+  const sc       = SHIFT[pool.shiftType] || SHIFT.morning;
+  const pks      = Object.values(pinukim[pool.id] || {});
+  const tpk      = pks.reduce((a, p) => a + p.amount, 0);
+  const net      = Math.max(0, pool.totalTips - tpk);
+  const hasDist  = !!distributions[pool.id];
+  const detailId = 'pd_' + pool.id;
+
+  return `
+    <div class="pool-card" style="border-right-color:${sc.color}">
+      <div class="pool-row-inner" onclick="togglePoolDetail('${detailId}')">
+        <span style="font-size:22px">${sc.emoji}</span>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-weight:700">${sc.label}</span>
+            <span style="font-weight:900;color:${sc.color};font-size:18px">₪${f0(pool.totalTips)}</span>
+            ${tpk > 0 ? `<span style="font-size:11px;color:#8B5CF6">→ ₪${f0(net)}</span>` : ''}
+            ${hasDist ? '<span class="pill" style="background:var(--green);color:#fff">✓ חולק</span>' : ''}
+          </div>
+          ${pks.length ? `<div style="margin-top:4px">${pks.map(pk =>
+            `<span class="pill" style="background:#2D1B3E;color:#C4B5FD;margin-left:4px">👉 ${pk.label} ₪${pk.amount}</span>`
+          ).join('')}</div>` : ''}
+        </div>
+        <span style="color:var(--dim);font-size:12px">▾</span>
+      </div>
+
+      <div id="${detailId}" class="pool-detail">
+        ${renderPoolDetail(pool, pks, net)}
+        <button onclick="openDistModal('${pool.id}')"
+          style="width:100%;margin-top:12px;padding:11px;border-radius:10px;border:none;
+            background:${hasDist ? 'var(--border)' : 'linear-gradient(135deg,var(--pink),var(--purple))'};
+            color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit">
+          ${hasDist ? '✏️ עדכן חלוקה' : '💰 חלק קופה'}
+        </button>
+      </div>
+    </div>`;
+}
+
+function togglePoolDetail(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('open');
+}
+
+function renderPoolDetail(pool, pks, net) {
+  const dist = calcDist(pool).dist;
+  let html = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-size:12px;font-weight:700;color:#C4B5FD">פינוקים</span>
+      <button class="btn-sec" onclick="toggleEl('pf_${pool.id}')">+ הוסף</button>
+    </div>
+    <div id="pf_${pool.id}" style="display:none;background:var(--border);border-radius:10px;padding:10px;margin-bottom:8px">
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <input type="text" id="pLabel_${pool.id}" value="מנהל" style="flex:2;margin-bottom:0;font-size:12px"/>
+        <input type="number" id="pAmt_${pool.id}" placeholder="₪" style="flex:1;margin-bottom:0;font-size:16px;font-weight:800;color:#C4B5FD;text-align:center"/>
+      </div>
+      <button onclick="addPinuk('${pool.id}')"
+        style="width:100%;padding:8px;background:#6D28D9;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;font-family:inherit">
+        + הוסף
+      </button>
+    </div>`;
+
+  pks.forEach(pk => {
+    html += `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="color:#C4B5FD;font-size:13px">👉 ${pk.label}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="color:#8B5CF6;font-weight:800">₪${pk.amount}</span>
+          <button onclick="removePinuk('${pool.id}','${pk.id}')"
+            style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px">✕</button>
+        </div>
+      </div>`;
+  });
+
+  if (pks.length) {
+    html += `
+      <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+        <span style="color:var(--muted);font-size:12px">נטו לחלוקה</span>
+        <span style="color:var(--green);font-weight:900;font-size:16px">₪${f2(net)}</span>
+      </div>`;
+  }
+
+  if (!dist.length) {
+    html += '<div style="text-align:center;color:var(--dim);font-size:12px;padding:12px 0">אין משמרות בתאריך זה</div>';
+    return html;
+  }
+
+  dist.forEach((d, i) => {
+    const ac = d.emp?.trainee ? MIN_WAGE[d.emp.ageCategory || 'adult'] : null;
+    const c  = ac ? ac.color : COLORS[i % COLORS.length];
+    html += `
+      <div style="background:var(--surf1);border-radius:10px;padding:10px;margin-bottom:6px;border:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:16px">${ROLES[d.emp?.role]?.emoji || '🤷'}</span>
+            <div>
+              <div style="font-weight:700;font-size:13px">${d.emp?.name || '?'}</div>
+              <div style="font-size:10px;color:var(--muted)">${d.hours}ש' × ₪${d.ew.toFixed(2)} = ${(d.ratio*100).toFixed(1)}%</div>
+            </div>
+          </div>
+          <div style="font-weight:900;color:${c};font-size:18px">₪${f2(d.share)}</div>
+        </div>
+        <div class="bar-bg"><div class="bar-fill" style="width:${d.ratio*100}%;background:${c}"></div></div>
+      </div>`;
+  });
+
+  html += `
+    <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid var(--border)">
+      <span style="font-size:11px;color:var(--dim)">סה"כ</span>
+      <span style="font-size:11px;font-weight:700;color:var(--green)">₪${f2(dist.reduce((a, d) => a + d.share, 0))}</span>
+    </div>`;
+
+  return html;
+}
+
+function addPinuk(poolId) {
+  const label  = document.getElementById('pLabel_' + poolId)?.value || 'פינוק';
+  const amount = Number(document.getElementById('pAmt_' + poolId)?.value || 0);
+  if (!amount || amount <= 0) { showToast('הכנס סכום', 'error'); return; }
+  const pk = { id: Date.now(), label, amount };
+  db.ref('pinukim/' + poolId + '/' + pk.id).set(pk)
+    .then(() => showToast('✓ פינוק הוסף', 'success'));
+}
+function removePinuk(poolId, pkId) {
+  db.ref('pinukim/' + poolId + '/' + pkId).remove();
+}
+
+// ─── Distribution Modal ──────────────────────────────────────
+function openDistModal(poolId) {
+  curPool = Object.values(pools).find(p => String(p.id) === poolId);
+  if (!curPool) return;
+
+  const sc   = SHIFT[curPool.shiftType];
+  document.getElementById('distSub').textContent = sc.emoji + ' ' + sc.label + ' · ' + heDate(curPool.date);
+
+  const ds    = Object.values(shifts).filter(s => s.date === curPool.date && s.shiftType === curPool.shiftType);
+  const saved = distributions[curPool.id];
+
+  if (saved && Object.keys(saved).length) {
+    distRows = Object.values(saved);
+  } else {
+    distRows = ds.map(s => {
+      const emp = Object.values(employees).find(e => e.id === s.employeeId);
+      const mw  = emp ? effWage(emp) : 35.40;
+      return {
+        empId: s.employeeId, emp,
+        hours: s.hours,
+        base:  parseFloat((mw * s.hours).toFixed(2)),
+        bonus: 0,
+        inEqualPool: emp ? !EXCL.includes(emp.role) && !emp.trainee : false
+      };
+    });
+  }
+
+  renderDistModal();
+  document.getElementById('distModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('distModal').classList.remove('open');
+  document.body.style.overflow = '';
+  curPool = null;
+}
+
+function renderDistModal() {
+  if (!curPool) return;
+
+  const pks      = Object.values(pinukim[curPool.id] || {});
+  const tp       = pks.reduce((a, p) => a + p.amount, 0);
+  const net      = Math.max(0, curPool.totalTips - tp);
+  const totalBase  = distRows.reduce((a, r) => a + Number(r.base  || 0), 0);
+  const totalBonus = distRows.reduce((a, r) => a + Number(r.bonus || 0), 0);
+  const rem     = net - totalBase - totalBonus;
+  const eqR     = distRows.filter(r => r.inEqualPool);
+  const eqShare = eqR.length && rem > 0 ? parseFloat((rem / eqR.length).toFixed(2)) : 0;
+  const finals  = distRows.map(r => ({
+    ...r,
+    eqShare: r.inEqualPool ? eqShare : 0,
+    total:   parseFloat((Number(r.base || 0) + Number(r.bonus || 0) + (r.inEqualPool ? eqShare : 0)).toFixed(2))
+  }));
+  const totalFinal = finals.reduce((a, r) => a + r.total, 0);
+  const balanced   = Math.abs(net - totalFinal) < 0.05;
+  const sc         = SHIFT[curPool.shiftType];
+  const msg = finals.filter(r => r.total > 0).map(r => (r.emp?.name || '?') + ' → ₪' + r.total.toFixed(0)).join('\n');
+
+  let h = `
+    <div style="background:var(--surf1);border-radius:14px;padding:14px;margin:14px 0;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border)">
+      <div><div style="font-size:10px;color:var(--muted)">קופה סה"כ</div><div style="font-size:22px;font-weight:900;color:${sc.color}">₪${f2(curPool.totalTips)}</div></div>
+      ${tp > 0 ? `<div><div style="font-size:10px;color:var(--muted)">פינוקים</div><div style="font-weight:700;color:#8B5CF6">−₪${f2(tp)}</div></div>` : ''}
+      <div><div style="font-size:10px;color:var(--muted)">לחלוקה</div><div style="font-size:22px;font-weight:900;color:var(--green)">₪${f2(net)}</div></div>
+    </div>
+
+    <div style="font-size:11px;color:var(--yellow);font-weight:700;letter-spacing:1px;margin-bottom:8px">שלב 1 — בסיס</div>`;
+
+  distRows.forEach((r, i) => {
+    const c   = COLORS[i % COLORS.length];
+    const def = parseFloat(((r.emp ? effWage(r.emp) : 35.40) * r.hours).toFixed(2));
+    h += `
+      <div style="background:var(--surf2);border-radius:10px;padding:10px 13px;margin-bottom:6px;border:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:18px">${ROLES[r.emp?.role]?.emoji || '🤷'}</span>
+            <div>
+              <div style="font-size:13px;font-weight:700">${r.emp?.name || '?'}</div>
+              <div style="font-size:10px;color:var(--muted)">${r.hours}ש' × ₪${r.emp ? effWage(r.emp).toFixed(2) : '-'} = ₪${def}</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" class="dist-input" style="border-color:${c}55;color:${c}"
+              value="${r.base}" oninput="updateRow(${r.empId},'base',this.value)"/>
+            <button onclick="resetRow(${r.empId})"
+              style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--muted)">↺</button>
+          </div>
+        </div>
+      </div>`;
+  });
+
+  h += `<div style="font-size:11px;color:#8B5CF6;font-weight:700;letter-spacing:1px;margin:16px 0 8px">שלב 2 — פינוק אישי</div>`;
+  distRows.forEach(r => {
+    h += `
+      <div style="background:var(--surf2);border-radius:10px;padding:9px 13px;margin-bottom:6px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;color:#CBD5E1">${r.emp?.name || '?'}</span>
+        <input type="number" class="dist-input" style="border-color:#4C1D95;color:#C4B5FD"
+          value="${r.bonus || ''}" placeholder="0" oninput="updateRow(${r.empId},'bonus',this.value)"/>
+      </div>`;
+  });
+
+  h += `
+    <div style="margin-top:16px">
+      <div style="font-size:11px;color:var(--green);font-weight:700;letter-spacing:1px;margin-bottom:8px">שלב 3 — חלוקה שווה</div>
+      <div style="background:var(--surf1);border-radius:12px;padding:12px;border:1px solid #1E3A2F">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+          <span style="color:var(--muted);font-size:12px">קופה לחלוקה</span>
+          <span style="color:var(--green);font-weight:700">₪${f2(net)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:8px;margin-bottom:10px">
+          <span style="font-weight:700;font-size:13px">יתרה לחלוקה</span>
+          <span style="color:${rem >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:900;font-size:16px">₪${f2(rem)}</span>
+        </div>`;
+
+  if (eqShare > 0) {
+    h += `<div style="font-size:11px;color:var(--muted);margin-bottom:8px">₪${f2(eqShare)} לכל אחד:</div>`;
+    eqR.forEach(r => {
+      h += `<div style="display:flex;justify-content:space-between;margin-bottom:5px">
+        <span style="font-size:12px;color:#CBD5E1">${r.emp?.name || '?'}</span>
+        <span style="color:var(--green);font-weight:700;font-size:13px">₪${f2(eqShare)}</span>
+      </div>`;
+    });
+  }
+
+  h += `<div style="border-top:1px solid var(--border);padding-top:8px;margin-top:8px">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px">שיוך לחלוקה שווה:</div>`;
+  distRows.forEach(r => {
+    h += `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+        <span style="font-size:12px;color:var(--text2)">${r.emp?.name || '?'}</span>
+        <button onclick="toggleEq(${r.empId})"
+          style="width:40px;height:20px;border-radius:99px;border:none;cursor:pointer;
+            background:${r.inEqualPool ? 'var(--green)' : 'var(--dim)'};position:relative;transition:background .2s">
+          <div style="width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:2px;
+            left:${r.inEqualPool ? 20 : 2}px;transition:left .2s"></div>
+        </button>
+      </div>`;
+  });
+  h += `</div></div></div>`;
+
+  h += `<div style="margin-top:18px"><div style="font-size:11px;font-weight:700;letter-spacing:1px;margin-bottom:8px">סיכום סופי</div>`;
+  finals.forEach((r, i) => {
+    const c = COLORS[i % COLORS.length];
+    h += `
+      <div style="background:var(--surf2);border-radius:12px;padding:11px 14px;margin-bottom:7px;border:1px solid ${c}44;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:700;font-size:14px">${r.emp?.name || '?'}</div>
+          <div style="font-size:10px;color:var(--muted)">₪${f2(r.base)}${r.bonus > 0 ? ' +₪'+f2(r.bonus) : ''}${r.eqShare > 0 ? ' +₪'+f2(r.eqShare) : ''}</div>
+        </div>
+        <div style="font-weight:900;color:${c};font-size:22px">₪${f2(r.total)}</div>
+      </div>`;
+  });
+
+  h += `
+    <div style="display:flex;justify-content:space-between;padding:10px 4px;border-top:1px solid var(--border)">
+      <span style="color:${balanced ? 'var(--green)' : 'var(--red)'};font-weight:700;font-size:13px">
+        ${balanced ? '✓ מאוזן' : '⚠️ לא מאוזן'}
+      </span>
+      <span style="color:${balanced ? 'var(--green)' : 'var(--red)'};font-weight:900">₪${f2(totalFinal)} / ₪${f2(net)}</span>
+    </div></div>`;
+
+  h += `
+    <div style="margin-top:20px;background:var(--surf1);border-radius:14px;padding:14px;border:1px solid #1E3A5F">
+      <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:10px">הודעה לוואטסאפ</div>
+      <div class="output-box" id="distMsg">${msg}</div>
+      <button id="copyBtn" class="copy-btn" onclick="copyMsg()">העתק הודעה</button>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:14px;padding-bottom:20px">
+      <button onclick="saveDist()"
+        style="flex:1;padding:14px;border-radius:14px;border:none;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-weight:900;font-size:15px;cursor:pointer;font-family:inherit">
+        שמור חלוקה
+      </button>
+      <button onclick="closeModal()"
+        style="padding:14px 18px;border-radius:14px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:14px;font-family:inherit">
+        בטל
+      </button>
+    </div>`;
+
+  document.getElementById('distBody').innerHTML = h;
+}
+
+function updateRow(empId, field, val) {
+  distRows = distRows.map(r => r.empId === empId ? { ...r, [field]: parseFloat(val) || 0 } : r);
+  renderDistModal();
+}
+function resetRow(empId) {
+  const r = distRows.find(r => r.empId === empId);
+  if (r) updateRow(empId, 'base', parseFloat(((r.emp ? effWage(r.emp) : 35.40) * r.hours).toFixed(2)));
+}
+function toggleEq(empId) {
+  distRows = distRows.map(r => r.empId === empId ? { ...r, inEqualPool: !r.inEqualPool } : r);
+  renderDistModal();
+}
+
+function saveDist() {
+  if (!curPool) return;
+  const pks  = Object.values(pinukim[curPool.id] || {});
+  const tp   = pks.reduce((a, p) => a + p.amount, 0);
+  const net  = Math.max(0, curPool.totalTips - tp);
+  const rem  = net - distRows.reduce((a, r) => a + Number(r.base || 0), 0) - distRows.reduce((a, r) => a + Number(r.bonus || 0), 0);
+  const eqR  = distRows.filter(r => r.inEqualPool);
+  const eqS  = eqR.length && rem > 0 ? parseFloat((rem / eqR.length).toFixed(2)) : 0;
+  const toSave = {};
+  distRows.forEach(r => {
+    toSave[r.empId] = {
+      ...r,
+      eqShare: r.inEqualPool ? eqS : 0,
+      total:   parseFloat((Number(r.base || 0) + Number(r.bonus || 0) + (r.inEqualPool ? eqS : 0)).toFixed(2))
+    };
+  });
+  db.ref('distributions/' + curPool.id).set(toSave)
+    .then(() => { showToast('✅ חלוקה נשמרה', 'success'); closeModal(); })
+    .catch(() => showToast('שגיאה בשמירה', 'error'));
+}
+
+function copyMsg() {
+  const txt = document.getElementById('distMsg')?.textContent;
+  if (!txt) return;
+  const btn = document.getElementById('copyBtn');
+  (navigator.clipboard?.writeText(txt) || Promise.resolve()).then(() => {
+    btn.classList.add('ok'); btn.textContent = '✓ הועתק!';
+    setTimeout(() => { btn.classList.remove('ok'); btn.textContent = 'העתק הודעה'; }, 2000);
+  });
+  // Fallback
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.classList.add('ok'); btn.textContent = '✓ הועתק!';
+    setTimeout(() => { btn.classList.remove('ok'); btn.textContent = 'העתק הודעה'; }, 2000);
+  } catch(e) {}
+}
+
+// ─── SHIFTS PAGE ─────────────────────────────────────────────
+function renderShiftTypeBtns() {
+  document.getElementById('shiftTypeBtns').innerHTML = Object.entries(SHIFT).map(([k, v]) =>
+    `<button class="stype-btn" id="stb_${k}" onclick="selShiftType('${k}')"
+      style="border-color:${selShift===k?v.color:'var(--border)'};background:${selShift===k?v.color+'22':'var(--border)'};color:${selShift===k?v.color:'var(--muted)'}">
+      ${v.emoji} ${v.label}
+    </button>`
+  ).join('');
+}
+
+function selShiftType(k) {
+  selShift = k; renderShiftTypeBtns(); calcPreview();
+}
+
+function calcPreview() {
+  const empId = Number(document.getElementById('shiftEmpSel')?.value || 0);
+  const emp   = Object.values(employees).find(e => e.id === empId);
+  const h     = Number(document.getElementById('hoursRange')?.value || 7);
+  const dt    = document.getElementById('shiftDayType')?.value || 'regular';
+  document.getElementById('previewWage').textContent = '₪' + f2(emp ? wageCalc(h, emp.wage, dt) : 0);
+}
+
+function saveShift() {
+  const empId   = Number(document.getElementById('shiftEmpSel').value);
+  const date    = document.getElementById('shiftDate').value;
+  const hours   = Number(document.getElementById('hoursRange').value);
+  const dayType = document.getElementById('shiftDayType').value;
+  if (!empId || !date) { showToast('בחר עובד ותאריך', 'error'); return; }
+  const id = Date.now();
+  db.ref('shifts/' + id).set({ id, employeeId: empId, date, shiftType: selShift, dayType, hours })
+    .then(() => { showToast('✅ משמרת נשמרה', 'success'); document.getElementById('addShiftForm').style.display = 'none'; })
+    .catch(() => showToast('שגיאה', 'error'));
+}
+
+function deleteShift(id) {
+  showConfirm('🗑️ מחיקת משמרת', 'האם למחוק את המשמרת?', () => {
+    db.ref('shifts/' + id).remove().then(() => showToast('🗑️ נמחקה', 'success'));
+  });
+}
+
+function renderShifts() {
+  const empArr = Object.values(employees);
+  document.getElementById('shiftEmpSel').innerHTML = empArr.map(e =>
+    `<option value="${e.id}">${ROLES[e.role]?.emoji || ''} ${e.name}${e.trainee ? ' (מתמחה)' : ''}</option>`
+  ).join('');
+
+  const byDate = {};
+  Object.values(shifts).sort((a, b) => b.date.localeCompare(a.date))
+    .forEach(s => { if (!byDate[s.date]) byDate[s.date] = []; byDate[s.date].push(s); });
+
+  if (!Object.keys(byDate).length) {
+    document.getElementById('shiftsList').innerHTML = '<div class="empty"><div class="ei">🗓️</div><div>אין משמרות</div></div>';
+    return;
+  }
+
+  document.getElementById('shiftsList').innerHTML = Object.entries(byDate).map(([d, ds]) =>
+    `<div style="margin-bottom:16px">
+      <div style="font-weight:700;color:var(--muted);font-size:12px;margin-bottom:6px">${heDate(d)}</div>
+      ${ds.map(s => {
+        const emp = Object.values(employees).find(e => e.id === s.employeeId);
+        const w   = emp ? wageCalc(s.hours, emp.wage, s.dayType) : 0;
+        const sc  = SHIFT[s.shiftType];
+        const ac  = emp?.trainee ? MIN_WAGE[emp.ageCategory || 'adult'] : null;
+        return `
+          <div class="row" style="border-right:3px solid ${sc.color};cursor:default">
+            <span style="font-size:18px;margin-left:8px">${ROLES[emp?.role]?.emoji || '🤷'}</span>
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+                <span style="font-weight:700;font-size:13px">${emp?.name || '?'}</span>
+                ${ac ? `<span class="pill" style="color:${ac.color};background:var(--border)">${ac.label}</span>` : ''}
+              </div>
+              <div style="font-size:11px;color:var(--muted)">${sc.label} · ${s.hours}ש'</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-weight:800;color:var(--green)">₪${f0(w)}</span>
+              <button onclick="deleteShift(${s.id})" style="background:none;border:none;cursor:pointer;font-size:16px">🗑️</button>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>`
+  ).join('');
+}
+
+// ─── EMPLOYEES PAGE ──────────────────────────────────────────
+function buildMinWageTable() {
+  document.getElementById('minWageTable').innerHTML =
+    Object.entries(MIN_WAGE).map(([k, v]) =>
+      `<div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="width:8px;height:8px;border-radius:50%;background:${v.color}"></div>
+          <span style="color:var(--text2);font-size:11px">${v.label}</span>
+        </div>
+        <span style="color:${v.color};font-weight:700;font-size:12px">₪${v.wage}</span>
+      </div>`
+    ).join('') +
+    '<div style="font-size:9px;color:var(--dim);margin-top:6px">* עדכון אפריל 2026</div>';
+}
+
+function toggleNewTrainee() {
+  newTrainee = !newTrainee;
+  const btn  = document.getElementById('traineeToggle');
+  btn.style.background = newTrainee ? '#3B82F6' : 'var(--dim)';
+  document.getElementById('traineeKnob').style.left = newTrainee ? '24px' : '4px';
+  document.getElementById('ageCatWrap').style.display = newTrainee ? 'block' : 'none';
+}
+
+function saveEmp() {
+  const name = document.getElementById('empName').value.trim();
+  if (!name) { showToast('הכנס שם', 'error'); return; }
+  const role   = document.getElementById('empRole').value;
+  const ageCat = document.getElementById('ageCatSel').value;
+  const base   = Number(document.getElementById('empWage').value) || 35;
+  const wage   = newTrainee ? (MIN_WAGE[ageCat]?.wage || 35.40) : base;
+  const id     = Date.now();
+  db.ref('employees/' + id).set({ id, name, role, wage, trainee: newTrainee, ageCategory: newTrainee ? ageCat : 'adult' })
+    .then(() => {
+      showToast('✅ עובד נוסף', 'success');
+      document.getElementById('empName').value = '';
+      document.getElementById('addEmpForm').style.display = 'none';
+      newTrainee = false;
+      document.getElementById('traineeToggle').style.background = 'var(--dim)';
+      document.getElementById('traineeKnob').style.left = '4px';
+      document.getElementById('ageCatWrap').style.display = 'none';
+    });
+}
+
+function deleteEmp(id) {
+  showConfirm('🗑️ מחיקת עובד', 'למחוק עובד זה? הנתונים לא יימחקו.', () => {
+    db.ref('employees/' + id).remove().then(() => showToast('🗑️ עובד הוסר', 'success'));
+  });
+}
+
+function toggleEmpDetail(id) { toggleEl('ed_' + id); }
+
+function updateEmpTrainee(empId, isT) {
+  const emp = Object.values(employees).find(e => e.id === empId);
+  if (!emp) return;
+  const dw = MIN_WAGE[emp.ageCategory || 'adult']?.wage || 35.40;
+  db.ref('employees/' + empId).update({ trainee: isT, traineeWageOverride: isT ? dw : null });
+}
+
+function updateAgeCategory(empId, cat) {
+  const dw = MIN_WAGE[cat]?.wage || 35.40;
+  db.ref('employees/' + empId).update({ ageCategory: cat, traineeWageOverride: dw });
+}
+
+function renderEmployees() {
+  const month  = thisMonth();
+  const emps   = Object.values(employees);
+  if (!emps.length) {
+    document.getElementById('empList').innerHTML = '<div class="empty"><div class="ei">👥</div><div>אין עובדים</div></div>';
+    return;
+  }
+
+  document.getElementById('empList').innerHTML = emps.map(emp => {
+    const ms    = Object.values(shifts).filter(s => s.employeeId === emp.id && s.date?.startsWith(month));
+    const gross = ms.reduce((a, s) => a + wageCalc(s.hours, emp.wage, s.dayType), 0);
+    const hours = ms.reduce((a, s) => a + s.hours, 0);
+    const tips  = Object.values(pools).filter(p => p.date?.startsWith(month))
+      .reduce((acc, pool) => {
+        const d = calcDist(pool).dist.find(d => d.emp?.id === emp.id);
+        return acc + (d ? d.share : 0);
+      }, 0);
+    const d  = ded(gross);
+    const ac = emp.trainee ? MIN_WAGE[emp.ageCategory || 'adult'] : null;
+
+    return `
+      <div style="margin-bottom:8px">
+        <div class="row" onclick="toggleEmpDetail(${emp.id})">
+          <div style="width:38px;height:38px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;margin-left:10px">
+            ${ROLES[emp.role]?.emoji || '🤷'}
+          </div>
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+              <span style="font-weight:700">${emp.name}</span>
+              ${ac ? `<span class="pill" style="color:${ac.color};background:var(--border)">${ac.label}</span>` : ''}
+            </div>
+            <div style="font-size:11px;color:var(--muted)">${ROLES[emp.role]?.label || ''} · ₪${emp.wage}/ש'</div>
+          </div>
+          <div style="text-align:left">
+            <div style="font-weight:800;color:var(--green);font-size:13px">₪${f0(gross)}</div>
+            <div style="font-size:11px;color:#F9A8D4">+₪${f0(tips)} טיפ</div>
+          </div>
+        </div>
+
+        <div id="ed_${emp.id}" style="display:none;background:var(--surf2);border-radius:0 0 12px 12px;padding:14px;border:1px solid var(--border);border-top:none">
+          <div style="background:var(--surf1);border-radius:12px;padding:12px;margin-bottom:12px;border:1px solid #1E3A5F">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <div style="font-weight:700;font-size:13px">${emp.trainee ? '🎓 ' + (ac?.label || 'מתמחה') : '✓ עובד רגיל'}</div>
+                <div style="color:var(--muted);font-size:11px">${emp.trainee ? 'שכר מינימום ₪' + effWage(emp).toFixed(2) + '/ש\'' : 'שכר רגיל'}</div>
+              </div>
+              <button onclick="updateEmpTrainee(${emp.id},${!emp.trainee})"
+                style="width:48px;height:26px;border-radius:99px;border:none;cursor:pointer;background:${emp.trainee ? '#3B82F6' : 'var(--dim)'};position:relative;transition:background .2s">
+                <div style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:3px;left:${emp.trainee ? 24 : 4}px;transition:left .2s"></div>
+              </button>
+            </div>
+            ${emp.trainee ? `
+              <div style="margin-top:10px">
+                <label>קטגוריית גיל</label>
+                <select onchange="updateAgeCategory(${emp.id},this.value)" style="margin-bottom:4px">
+                  ${Object.entries(MIN_WAGE).map(([k, v]) =>
+                    `<option value="${k}"${emp.ageCategory === k ? ' selected' : ''}>${v.label} — ₪${v.wage}</option>`
+                  ).join('')}
+                </select>
+              </div>` : ''}
+          </div>
+
+          ${[['שעות', hours + 'ש\''], ['ברוטו', '₪' + f2(gross)], ['טיפים', '₪' + f2(tips)],
+             ['ניכויים', '₪' + f2(d.total)], ['נטו+טיפים', '₪' + f2(gross - d.total + tips)],
+             ['עלות מעסיק', '₪' + f2(gross + gross * .2893)]].map(([k, v]) =>
+            `<div class="deduction-row"><span style="color:var(--muted);font-size:12px">${k}</span><span style="font-weight:700;font-size:12px">${v}</span></div>`
+          ).join('')}
+
+          <button onclick="deleteEmp(${emp.id})"
+            style="margin-top:12px;background:var(--border);border:none;border-radius:8px;padding:7px 14px;color:var(--red);cursor:pointer;font-size:12px;font-weight:700">
+            🗑️ הסר עובד
+          </button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ─── SALARY PAGE ─────────────────────────────────────────────
+function renderSalary() {
+  const month = document.getElementById('salaryMonth')?.value || thisMonth();
+  const ms    = Object.values(shifts).filter(s => s.date?.startsWith(month));
+  const mp    = Object.values(pools).filter(p => p.date?.startsWith(month));
+  const emps  = Object.values(employees);
+
+  const sums = emps.map(emp => {
+    const es    = ms.filter(s => s.employeeId === emp.id);
+    const gross = es.reduce((a, s) => a + wageCalc(s.hours, emp.wage, s.dayType), 0);
+    const hours = es.reduce((a, s) => a + s.hours, 0);
+    const tips  = mp.reduce((acc, pool) => {
+      const d = calcDist(pool).dist.find(d => d.emp?.id === emp.id);
+      return acc + (d ? d.share : 0);
+    }, 0);
+    const d = ded(gross);
+    return { emp, gross, hours, tips, d, net: gross - d.total, shifts: es };
+  }).filter(s => s.shifts.length > 0);
+
+  const tot = sums.reduce((a, s) => ({
+    g: a.g + s.gross, t: a.t + s.tips,
+    n: a.n + s.net,   c: a.c + s.gross + s.gross * .2893
+  }), { g: 0, t: 0, n: 0, c: 0 });
+
+  document.getElementById('salaryTotals').innerHTML = `
+    <div style="background:linear-gradient(135deg,#1a0a1e,#0f1729);border-radius:10px;padding:12px">
+      ${[['ברוטו','₪'+f0(tot.g),'#818CF8'],['טיפים','₪'+f0(tot.t),'#F9A8D4'],
+         ['נטו','₪'+f0(tot.n),'#6EE7B7'],['עלות מעסיק','₪'+f0(tot.c),'#FCA5A5']]
+        .map(([l, v, c]) =>
+          `<div style="display:flex;justify-content:space-between;margin-bottom:8px">
+            <span style="color:var(--muted)">${l}</span>
+            <span style="color:${c};font-weight:900;font-size:16px">${v}</span>
+          </div>`
+        ).join('')}
+    </div>`;
+
+  if (!sums.length) {
+    document.getElementById('salaryList').innerHTML = '<div class="empty"><div class="ei">📊</div><div>אין נתונים</div></div>';
+    return;
+  }
+
+  document.getElementById('salaryList').innerHTML = sums.map(s => {
+    const { emp, gross, hours, tips, d, net } = s;
+    const ac = emp.trainee ? MIN_WAGE[emp.ageCategory || 'adult'] : null;
+    return `
+      <div style="margin-bottom:8px">
+        <div class="row" onclick="toggleEl('sal_${emp.id}')">
+          <span style="font-size:22px;margin-left:10px">${ROLES[emp.role]?.emoji || '🤷'}</span>
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+              <span style="font-weight:700">${emp.name}</span>
+              ${ac ? `<span class="pill" style="color:${ac.color};background:var(--border)">${ac.label}</span>` : ''}
+            </div>
+            <div style="font-size:11px;color:var(--muted)">${hours}ש'</div>
+          </div>
+          <div style="text-align:left">
+            <div style="color:var(--green);font-weight:800">₪${f0(net)} נטו</div>
+            <div style="font-size:11px;color:#F9A8D4">+₪${f0(tips)} טיפ</div>
+          </div>
+        </div>
+
+        <div id="sal_${emp.id}" style="display:none;background:var(--surf2);border-radius:0 0 12px 12px;padding:12px;border:1px solid var(--border);border-top:none">
+          ${ac ? `<div style="background:#1E3A5F;border-radius:8px;padding:6px 10px;margin-bottom:10px;font-size:11px;color:${ac.color}">🎓 ${ac.label} · ₪${effWage(emp).toFixed(2)}/ש'</div>` : ''}
+          ${[['ברוטו','₪'+f2(gross)],['טיפים','₪'+f2(tips)],
+             ['מס הכנסה','-₪'+f2(d.tax)],['ביטוח לאומי','-₪'+f2(d.bl)],
+             ['מס בריאות','-₪'+f2(d.health)],['פנסיה','-₪'+f2(d.pension)],
+             ['השתלמות','-₪'+f2(d.edu)]].map(([k, v]) =>
+              `<div class="deduction-row"><span style="color:var(--muted);font-size:12px">${k}</span><span style="font-size:12px">${v}</span></div>`
+          ).join('')}
+          <div style="background:var(--surf1);border-radius:10px;padding:10px;margin-top:8px;display:flex;justify-content:space-between">
+            <span style="font-weight:700">נטו + טיפים</span>
+            <span style="color:var(--green);font-weight:900;font-size:18px">₪${f2(net + tips)}</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ─── SETTINGS PAGE ───────────────────────────────────────────
+function renderPinDisplay() {
+  const el = document.getElementById('currentPinDisplay');
+  if (!el) return;
+  el.textContent = pinVisible ? currentPin : '•'.repeat(currentPin.length);
+}
+
+function togglePinVisibility() {
+  pinVisible = !pinVisible;
+  renderPinDisplay();
+  document.getElementById('togglePinBtn').textContent = pinVisible ? '🙈 הסתר' : '👁 הצג';
+}
+
+function savePin() {
+  const newPin  = document.getElementById('newPinInput').value.trim();
+  const confPin = document.getElementById('confirmPinInput').value.trim();
+  if (!/^\d{4}$/.test(newPin))  { showToast('הקוד חייב להיות 4 ספרות', 'error'); return; }
+  if (newPin !== confPin)        { showToast('הקודים אינם תואמים', 'error'); return; }
+  db.ref('settings/cashierPin').set(newPin).then(() => {
+    showToast('🔑 קוד עודכן בהצלחה!', 'success');
+    document.getElementById('newPinInput').value    = '';
+    document.getElementById('confirmPinInput').value = '';
+    pinVisible = false;
+    document.getElementById('togglePinBtn').textContent = '👁 הצג';
+  }).catch(() => showToast('שגיאה בשמירה', 'error'));
+}
+
+// ─── Confirm helper ──────────────────────────────────────────
+function showConfirm(title, msg, cb) {
+  document.getElementById('confirmTitle').textContent = title.replace(/^[^\s]+ /, '');
+  document.getElementById('confirmMsg').textContent   = msg;
+  confirmCallback = cb;
+  document.getElementById('confirmOverlay').classList.add('open');
+}
+document.getElementById('confirmYes').onclick = () => {
+  document.getElementById('confirmOverlay').classList.remove('open');
+  if (confirmCallback) { confirmCallback(); confirmCallback = null; }
+};
+document.getElementById('confirmNo').onclick = () => {
+  document.getElementById('confirmOverlay').classList.remove('open');
+  confirmCallback = null;
+};
+
+// ─── Toast ───────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className   = 'show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, 2800);
+}
+</script>
+</body>
+</html>
