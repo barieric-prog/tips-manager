@@ -1,16 +1,18 @@
-const CACHE = 'tips-v3';
+const CACHE = 'tips-v4';
 
 const SHELL = [
   './',
   './index.html',
   './cashier.html',
   './manager.html',
+  './db.js',
   './manifest.json',
   './icon.svg',
 ];
 
-// Always fetch fresh from network — never cache Firebase or Google
+// Always fetch fresh from network — never cache API calls
 const NETWORK_DOMAINS = [
+  'api.github.com',
   'firebasedatabase.app',
   'firebaseapp.com',
   'googleapis.com',

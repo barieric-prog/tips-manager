@@ -12,8 +12,7 @@
 <link rel="apple-touch-icon" href="icon.svg"/>
 <title>מנהל טיפים 📊</title>
 <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="db.js"></script>
 <style>
 :root {
   --bg:       #060D1A;
@@ -52,15 +51,6 @@ input, button, select, textarea { font-family: inherit; }
   display: none; position: sticky; top: 0; z-index: 50;
 }
 
-/* ── Firebase error ── */
-#firebaseBar {
-  background: #1a0e00; color: #FCD34D;
-  border-bottom: 1px solid #F59E0B;
-  padding: 10px 16px;
-  font-size: 12px;
-  display: none; position: sticky; top: 0; z-index: 49;
-  line-height: 1.6;
-}
 
 /* ── Toast ── */
 #toast {
@@ -323,12 +313,6 @@ input[type=range] {
 <body>
 
 <div id="offlineBar">⚠️ אין חיבור לאינטרנט</div>
-<div id="firebaseBar">
-  ⚠️ <strong>מסד הנתונים חסום</strong> — יש לפתוח את חוקי Firebase:
-  <a href="https://console.firebase.google.com/project/tips-manager-25d5c/database/tips-manager-25d5c-default-rtdb/rules"
-     target="_blank" style="color:#FCD34D;font-weight:900">פתח Firebase Console</a>
-  ← שנה ל: <code style="background:#2d1f00;padding:1px 6px;border-radius:4px;font-size:11px">".read":true,".write":true</code> ← לחץ Publish
-</div>
 <div id="toast"></div>
 
 <!-- Confirm dialog -->
@@ -606,17 +590,7 @@ input[type=range] {
 </div>
 
 <script>
-// ─── Firebase ────────────────────────────────────────────────
-firebase.initializeApp({
-  apiKey: "AIzaSyAsWxEHla-9Ar0Ri4H4rXHInuecsAnXmnA",
-  authDomain: "tips-manager-25d5c.firebaseapp.com",
-  databaseURL: "https://tips-manager-25d5c-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "tips-manager-25d5c",
-  storageBucket: "tips-manager-25d5c.firebasestorage.app",
-  messagingSenderId: "724762339117",
-  appId: "1:724762339117:web:2e2a62090bec37675055a4"
-});
-const db = firebase.database();
+// db is provided by db.js
 
 // ─── Constants ───────────────────────────────────────────────
 const MIN_WAGE = {
@@ -803,16 +777,15 @@ function signOut() {
 
 // ─── App init ────────────────────────────────────────────────
 function initApp() {
-  const onErr = e => { if (e.code === 'PERMISSION_DENIED') showFirebaseError(); };
   db.ref('tip_pools').on('value', snap => {
     pools = snap.val() || {};
     renderAll();
     document.getElementById('syncLabel').textContent = 'מסונכרן · ' + new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-  }, onErr);
-  db.ref('employees').on('value',     snap => { employees     = snap.val() || {}; renderAll(); }, onErr);
-  db.ref('shifts').on('value',        snap => { shifts        = snap.val() || {}; renderAll(); }, onErr);
-  db.ref('pinukim').on('value',       snap => { pinukim       = snap.val() || {}; renderTips(); }, onErr);
-  db.ref('distributions').on('value', snap => { distributions = snap.val() || {}; renderTips(); }, onErr);
+  });
+  db.ref('employees').on('value',     snap => { employees     = snap.val() || {}; renderAll(); });
+  db.ref('shifts').on('value',        snap => { shifts        = snap.val() || {}; renderAll(); });
+  db.ref('pinukim').on('value',       snap => { pinukim       = snap.val() || {}; renderTips(); });
+  db.ref('distributions').on('value', snap => { distributions = snap.val() || {}; renderTips(); });
 
   // Cashier PIN: localStorage first, then Firebase sync
   currentPin = localStorage.getItem('cashier_pin') || '1234';
@@ -1622,12 +1595,6 @@ function savePin() {
   document.getElementById('confirmPinInput').value  = '';
   pinVisible = false;
   document.getElementById('togglePinBtn').textContent = '👁 הצג';
-}
-
-// ─── Firebase error banner ───────────────────────────────────
-function showFirebaseError() {
-  const bar = document.getElementById('firebaseBar');
-  if (bar) bar.style.display = 'block';
 }
 
 // ─── Confirm helper ──────────────────────────────────────────

@@ -12,8 +12,7 @@
 <link rel="apple-touch-icon" href="icon.svg"/>
 <title>קופת טיפים 💰</title>
 <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="db.js"></script>
 <style>
   :root {
     --bg: #060D1A;
@@ -592,17 +591,7 @@
 </div>
 
 <script>
-// ─── Firebase ───────────────────────────────────────────────
-firebase.initializeApp({
-  apiKey: "AIzaSyAsWxEHla-9Ar0Ri4H4rXHInuecsAnXmnA",
-  authDomain: "tips-manager-25d5c.firebaseapp.com",
-  databaseURL: "https://tips-manager-25d5c-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "tips-manager-25d5c",
-  storageBucket: "tips-manager-25d5c.firebasestorage.app",
-  messagingSenderId: "724762339117",
-  appId: "1:724762339117:web:2e2a62090bec37675055a4"
-});
-const db = firebase.database();
+// db is provided by db.js
 
 // ─── Constants ───────────────────────────────────────────────
 const SHIFT = {
