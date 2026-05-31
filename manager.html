@@ -2,11 +2,14 @@
 <html dir="rtl" lang="he">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#060D1A"/>
 <link rel="manifest" href="manifest.json"/>
+<link rel="icon" href="icon.svg" type="image/svg+xml"/>
+<link rel="apple-touch-icon" href="icon.svg"/>
 <title>מנהל טיפים 📊</title>
 <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -32,12 +35,13 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-html, body { background: var(--bg); min-height: 100vh; }
+html, body { background: var(--bg); min-height: 100vh; min-height: -webkit-fill-available; }
+html { overscroll-behavior: none; }
 body {
   color: var(--text);
   font-family: 'Assistant', 'Segoe UI', sans-serif;
   direction: rtl;
-  padding-bottom: 80px;
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
 }
 input, button, select, textarea { font-family: inherit; }
 
@@ -121,8 +125,9 @@ nav {
   position: fixed; bottom: 0; left: 0; right: 0;
   background: #070E1D; border-top: 1px solid var(--border);
   display: flex; justify-content: space-around;
-  padding: 8px 0 16px; z-index: 100;
+  padding: 8px 0 calc(14px + env(safe-area-inset-bottom)); z-index: 100;
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 .nav-btn {
   display: flex; flex-direction: column; align-items: center;
@@ -1519,6 +1524,19 @@ function showToast(msg, type = '') {
   el.className   = 'show' + (type ? ' ' + type : '');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.className = ''; }, 2800);
+}
+
+// ─── PWA ─────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+}
+if (window.navigator.standalone) {
+  document.addEventListener('click', e => {
+    const a = e.target.closest('a[href]');
+    if (a && !a.target && a.href.startsWith(location.origin)) {
+      e.preventDefault(); location.href = a.href;
+    }
+  });
 }
 </script>
 </body>

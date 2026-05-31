@@ -2,33 +2,44 @@
   "name": "קופת טיפים",
   "short_name": "טיפים",
   "description": "מערכת ניהול טיפים לעסקים",
-  "start_url": "/index.html",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#060D1A",
   "theme_color": "#060D1A",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
   "lang": "he",
   "dir": "rtl",
   "icons": [
     {
-      "src": "https://api.iconify.design/twemoji:pizza.svg",
-      "sizes": "192x192",
+      "src": "icon.svg",
+      "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
     {
-      "name": "קופאי",
+      "name": "כניסת קופאי",
       "short_name": "קופאי",
-      "url": "/cashier.html",
-      "description": "כניסת קופאי"
+      "url": "./cashier.html",
+      "description": "רישום קופות טיפים",
+      "icons": [{ "src": "icon.svg", "sizes": "any" }]
     },
     {
-      "name": "מנהל",
+      "name": "כניסת מנהל",
       "short_name": "מנהל",
-      "url": "/manager.html",
-      "description": "כניסת מנהל"
+      "url": "./manager.html",
+      "description": "ניהול טיפים ועובדים",
+      "icons": [{ "src": "icon.svg", "sizes": "any" }]
     }
-  ]
+  ],
+  "categories": ["business", "finance"],
+  "prefer_related_applications": false
 }

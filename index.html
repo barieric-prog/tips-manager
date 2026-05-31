@@ -2,12 +2,15 @@
 <html dir="rtl" lang="he">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#060D1A"/>
 <meta name="description" content="מערכת ניהול טיפים - קופת טיפים מקצועית"/>
 <link rel="manifest" href="manifest.json"/>
+<link rel="icon" href="icon.svg" type="image/svg+xml"/>
+<link rel="apple-touch-icon" href="icon.svg"/>
 <title>קופת טיפים 🍕</title>
 <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
@@ -23,16 +26,20 @@
 
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
+  html { overscroll-behavior: none; }
+
   body {
     background: var(--bg);
     font-family: 'Assistant', sans-serif;
     direction: rtl;
     min-height: 100vh;
+    min-height: -webkit-fill-available;
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
     position: relative;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
 
   /* Ambient glow */
@@ -198,5 +205,21 @@
 
   <div class="version">v2.0 · קופת טיפים</div>
 </div>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+}
+// iOS standalone: keep navigation inside the app
+if (window.navigator.standalone) {
+  document.addEventListener('click', e => {
+    const a = e.target.closest('a[href]');
+    if (a && !a.target && a.href.startsWith(location.origin)) {
+      e.preventDefault();
+      location.href = a.href;
+    }
+  });
+}
+</script>
 </body>
 </html>
