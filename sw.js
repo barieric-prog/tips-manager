@@ -1,4 +1,4 @@
-const CACHE = 'tips-v2';
+const CACHE = 'tips-v3';
 
 const SHELL = [
   './',

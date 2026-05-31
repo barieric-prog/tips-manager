@@ -629,13 +629,18 @@ const f0        = n  => Number(n || 0).toFixed(0);
 document.getElementById('dateInput').value = todayStr();
 selectShift('morning');
 
-// Load PIN from Firebase then check session
+// PIN: localStorage (set by manager) → Firebase sync → default '1234'
+savedPin = localStorage.getItem('cashier_pin') || DEFAULT_PIN;
+if (sessionStorage.getItem('cashierAuth') === 'ok') {
+  showApp();
+}
+// Try Firebase PIN sync (best effort — works once DB rules are opened)
 db.ref('settings/cashierPin').once('value', snap => {
-  savedPin = snap.val() || DEFAULT_PIN;
-  if (sessionStorage.getItem('cashierAuth') === 'ok') {
-    showApp();
+  if (snap.val()) {
+    savedPin = snap.val();
+    localStorage.setItem('cashier_pin', snap.val());
   }
-});
+}, () => {});
 
 // ─── PIN Gate ────────────────────────────────────────────────
 function pinDigit(d) {

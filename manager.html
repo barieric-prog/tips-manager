@@ -52,6 +52,16 @@ input, button, select, textarea { font-family: inherit; }
   display: none; position: sticky; top: 0; z-index: 50;
 }
 
+/* ── Firebase error ── */
+#firebaseBar {
+  background: #1a0e00; color: #FCD34D;
+  border-bottom: 1px solid #F59E0B;
+  padding: 10px 16px;
+  font-size: 12px;
+  display: none; position: sticky; top: 0; z-index: 49;
+  line-height: 1.6;
+}
+
 /* ── Toast ── */
 #toast {
   position: fixed; top: 16px; left: 50%;
@@ -313,6 +323,12 @@ input[type=range] {
 <body>
 
 <div id="offlineBar">⚠️ אין חיבור לאינטרנט</div>
+<div id="firebaseBar">
+  ⚠️ <strong>מסד הנתונים חסום</strong> — יש לפתוח את חוקי Firebase:
+  <a href="https://console.firebase.google.com/project/tips-manager-25d5c/database/tips-manager-25d5c-default-rtdb/rules"
+     target="_blank" style="color:#FCD34D;font-weight:900">פתח Firebase Console</a>
+  ← שנה ל: <code style="background:#2d1f00;padding:1px 6px;border-radius:4px;font-size:11px">".read":true,".write":true</code> ← לחץ Publish
+</div>
 <div id="toast"></div>
 
 <!-- Confirm dialog -->
@@ -700,27 +716,21 @@ function calcDist(pool) {
   };
 }
 
-// ─── Manager PIN Auth ────────────────────────────────────────
+// ─── Manager PIN Auth (localStorage — synchronous, no Firebase needed) ──────
 let mgrPin       = '';
-let storedMgrPin = null;
-let firstSetup   = false;
+let storedMgrPin = localStorage.getItem('mgr_pin') || null;
+let firstSetup   = !storedMgrPin;
 let firstTemp    = '';
+const pinReady   = true;
 
-db.ref('settings/managerPin').once('value', snap => {
-  storedMgrPin = snap.val();
-  firstSetup   = !storedMgrPin;
-  if (sessionStorage.getItem('managerAuth') === 'ok') {
-    showApp();
-    return;
-  }
-  if (firstSetup) {
-    document.getElementById('pinGateTitle').textContent = 'הגדר קוד מנהל';
-    document.getElementById('pinGateSub').textContent   = 'בחר קוד 4 ספרות לכניסה';
-  } else {
-    document.getElementById('pinGateTitle').textContent = 'כניסת מנהל';
-    document.getElementById('pinGateSub').textContent   = 'הכנס קוד גישה';
-  }
-});
+if (sessionStorage.getItem('managerAuth') === 'ok') {
+  showApp();
+} else if (firstSetup) {
+  document.getElementById('pinGateTitle').textContent = 'הגדר קוד מנהל';
+  document.getElementById('pinGateSub').textContent   = 'בחר קוד 4 ספרות לכניסה';
+} else {
+  document.getElementById('pinGateSub').textContent   = 'הכנס קוד גישה';
+}
 
 function mgrDigit(d) {
   if (mgrPin.length >= 4) return;
@@ -747,12 +757,12 @@ function handleFirstSetup() {
     updateMgrDots();
     document.getElementById('pinGateSub').textContent = 'הכנס שוב לאישור';
   } else if (mgrPin === firstTemp) {
-    db.ref('settings/managerPin').set(mgrPin).then(() => {
-      storedMgrPin = mgrPin; firstSetup = false;
-      sessionStorage.setItem('managerAuth', 'ok');
-      showToast('✅ קוד נשמר!', 'success');
-      showApp();
-    });
+    localStorage.setItem('mgr_pin', mgrPin);
+    storedMgrPin = mgrPin;
+    firstSetup   = false;
+    sessionStorage.setItem('managerAuth', 'ok');
+    showToast('✅ קוד נשמר!', 'success');
+    showApp();
   } else {
     shakeMgrDots('הקודים אינם תואמים, נסה שוב');
     firstTemp = ''; mgrPin = '';
@@ -793,19 +803,27 @@ function signOut() {
 
 // ─── App init ────────────────────────────────────────────────
 function initApp() {
+  const onErr = e => { if (e.code === 'PERMISSION_DENIED') showFirebaseError(); };
   db.ref('tip_pools').on('value', snap => {
     pools = snap.val() || {};
     renderAll();
     document.getElementById('syncLabel').textContent = 'מסונכרן · ' + new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-  });
-  db.ref('employees').on('value',     snap => { employees     = snap.val() || {}; renderAll(); });
-  db.ref('shifts').on('value',        snap => { shifts        = snap.val() || {}; renderAll(); });
-  db.ref('pinukim').on('value',       snap => { pinukim       = snap.val() || {}; renderTips(); });
-  db.ref('distributions').on('value', snap => { distributions = snap.val() || {}; renderTips(); });
+  }, onErr);
+  db.ref('employees').on('value',     snap => { employees     = snap.val() || {}; renderAll(); }, onErr);
+  db.ref('shifts').on('value',        snap => { shifts        = snap.val() || {}; renderAll(); }, onErr);
+  db.ref('pinukim').on('value',       snap => { pinukim       = snap.val() || {}; renderTips(); }, onErr);
+  db.ref('distributions').on('value', snap => { distributions = snap.val() || {}; renderTips(); }, onErr);
+
+  // Cashier PIN: localStorage first, then Firebase sync
+  currentPin = localStorage.getItem('cashier_pin') || '1234';
+  renderPinDisplay();
   db.ref('settings/cashierPin').on('value', snap => {
-    currentPin = snap.val() || '1234';
-    renderPinDisplay();
-  });
+    if (snap.val()) {
+      currentPin = snap.val();
+      localStorage.setItem('cashier_pin', snap.val());
+      renderPinDisplay();
+    }
+  }, () => {});
 
   // Static setup
   buildMinWageTable();
@@ -1583,12 +1601,11 @@ function saveMgrPin() {
   const cp = document.getElementById('confirmMgrPinInput').value.trim();
   if (!/^\d{4}$/.test(np)) { showToast('הקוד חייב להיות 4 ספרות', 'error'); return; }
   if (np !== cp)             { showToast('הקודים אינם תואמים', 'error'); return; }
-  db.ref('settings/managerPin').set(np).then(() => {
-    storedMgrPin = np;
-    showToast('🔐 קוד מנהל עודכן!', 'success');
-    document.getElementById('newMgrPinInput').value    = '';
-    document.getElementById('confirmMgrPinInput').value = '';
-  }).catch(() => showToast('שגיאה בשמירה', 'error'));
+  localStorage.setItem('mgr_pin', np);
+  storedMgrPin = np;
+  showToast('🔐 קוד מנהל עודכן!', 'success');
+  document.getElementById('newMgrPinInput').value    = '';
+  document.getElementById('confirmMgrPinInput').value = '';
 }
 
 function savePin() {
@@ -1596,13 +1613,21 @@ function savePin() {
   const confPin = document.getElementById('confirmPinInput').value.trim();
   if (!/^\d{4}$/.test(newPin))  { showToast('הקוד חייב להיות 4 ספרות', 'error'); return; }
   if (newPin !== confPin)        { showToast('הקודים אינם תואמים', 'error'); return; }
-  db.ref('settings/cashierPin').set(newPin).then(() => {
-    showToast('🔑 קוד קופאי עודכן!', 'success');
-    document.getElementById('newPinInput').value     = '';
-    document.getElementById('confirmPinInput').value  = '';
-    pinVisible = false;
-    document.getElementById('togglePinBtn').textContent = '👁 הצג';
-  }).catch(() => showToast('שגיאה בשמירה', 'error'));
+  localStorage.setItem('cashier_pin', newPin);
+  currentPin = newPin;
+  db.ref('settings/cashierPin').set(newPin).catch(() => {});
+  renderPinDisplay();
+  showToast('🔑 קוד קופאי עודכן!', 'success');
+  document.getElementById('newPinInput').value     = '';
+  document.getElementById('confirmPinInput').value  = '';
+  pinVisible = false;
+  document.getElementById('togglePinBtn').textContent = '👁 הצג';
+}
+
+// ─── Firebase error banner ───────────────────────────────────
+function showFirebaseError() {
+  const bar = document.getElementById('firebaseBar');
+  if (bar) bar.style.display = 'block';
 }
 
 // ─── Confirm helper ──────────────────────────────────────────
