@@ -366,95 +366,6 @@
   .save-btn:not(:disabled):active { transform: scale(.98); }
   .save-btn.success { background: var(--green); }
 
-  .cancel-btn {
-    width: 100%;
-    margin-top: 10px;
-    padding: 12px;
-    border-radius: 12px;
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--muted);
-    font-size: 13px;
-    cursor: pointer;
-    font-family: inherit;
-  }
-
-  /* History */
-  .section-label {
-    font-size: 10px;
-    color: var(--dim);
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    margin-bottom: 14px;
-  }
-
-  .date-group { margin-bottom: 24px; }
-  .date-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--muted);
-    margin-bottom: 8px;
-    padding: 0 2px;
-  }
-  .date-header .date-total { color: var(--text-2); font-weight: 800; }
-
-  .pool-row {
-    background: var(--surface);
-    border-radius: 14px;
-    padding: 14px 16px;
-    display: flex;
-    align-items: center;
-    margin-bottom: 8px;
-    border: 1px solid var(--border);
-    border-right: 4px solid;
-    transition: transform .15s;
-  }
-  .pool-row:active { transform: scale(.99); }
-
-  .pool-emoji { font-size: 24px; margin-left: 12px; }
-  .pool-info  { flex: 1; }
-  .pool-name  { font-weight: 800; color: var(--text); font-size: 15px; display: flex; align-items: center; gap: 8px; }
-  .pool-time  { font-size: 10px; color: var(--dim); margin-top: 2px; }
-  .pool-amount { font-weight: 900; font-size: 20px; }
-
-  .action-btns { display: flex; gap: 6px; margin-right: 8px; }
-  .icon-btn {
-    background: var(--border);
-    border: none;
-    border-radius: 8px;
-    padding: 7px 10px;
-    cursor: pointer;
-    font-size: 15px;
-    color: var(--text-2);
-    transition: background .15s;
-    font-family: inherit;
-  }
-  .icon-btn:active { background: var(--border-2); }
-  .icon-btn.del { color: var(--red); }
-
-  .empty {
-    text-align: center;
-    padding: 60px 20px;
-    color: var(--dim);
-  }
-  .empty .icon { font-size: 48px; margin-bottom: 12px; }
-  .empty .msg  { font-size: 14px; }
-
-  /* Loading skeleton */
-  .skeleton {
-    background: linear-gradient(90deg, var(--border) 0%, var(--border-2) 50%, var(--border) 100%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-    border-radius: 10px;
-    height: 60px;
-    margin-bottom: 8px;
-  }
-  @keyframes shimmer { to { background-position: -200% 0; } }
-
   /* Sync indicator */
   .sync-dot {
     width: 6px; height: 6px;
@@ -481,19 +392,6 @@
 
 <!-- Toast -->
 <div id="toast"></div>
-
-<!-- Confirm dialog -->
-<div id="confirmOverlay">
-  <div class="confirm-box">
-    <div class="icon">🗑️</div>
-    <h3>מחיקת רשומה</h3>
-    <p>האם למחוק את הקופה הזו? פעולה זו אינה ניתנת לביטול.</p>
-    <div class="confirm-btns">
-      <button class="btn-confirm-yes" id="confirmYes">מחק</button>
-      <button class="btn-confirm-no"  id="confirmNo">בטל</button>
-    </div>
-  </div>
-</div>
 
 <!-- PIN Gate -->
 <div id="pinGate">
@@ -545,7 +443,7 @@
 
     <!-- Form -->
     <div class="form-card">
-      <div class="form-title" id="formTitle">➕ רשום קופה חדשה</div>
+      <div class="form-title">➕ רשום קופה חדשה</div>
 
       <label>📅 תאריך</label>
       <input type="date" id="dateInput"/>
@@ -575,17 +473,6 @@
       <button class="save-btn" id="saveBtn" onclick="handleSave()" disabled>
         💾 שמור קופה
       </button>
-      <button class="cancel-btn" id="cancelBtn" onclick="cancelEdit()" style="display:none">
-        ✕ בטל עריכה
-      </button>
-    </div>
-
-    <!-- History -->
-    <div class="section-label">היסטוריה</div>
-    <div id="history">
-      <div class="skeleton"></div>
-      <div class="skeleton" style="height:50px"></div>
-      <div class="skeleton" style="height:50px"></div>
     </div>
   </div>
 </div>
@@ -603,11 +490,9 @@ const DEFAULT_PIN = '1234';
 
 // ─── State ───────────────────────────────────────────────────
 let curShift = 'morning';
-let editId   = null;
 let pools    = {};
 let pinValue = '';
 let savedPin = DEFAULT_PIN;
-let confirmCallback = null;
 
 // ─── Init ────────────────────────────────────────────────────
 const todayStr  = () => new Date().toISOString().split('T')[0];
@@ -739,13 +624,13 @@ function updateBtn() {
   document.getElementById('saveBtn').disabled = !v || v <= 0;
 }
 
-// ─── Save / edit ─────────────────────────────────────────────
+// ─── Save ────────────────────────────────────────────────────
 function handleSave() {
   const amount = Number(document.getElementById('amountInput').value);
   const date   = document.getElementById('dateInput').value;
   if (!amount || amount <= 0 || !date) return;
 
-  const id = editId || Date.now();
+  const id = Date.now();
   setSyncState('syncing');
   db.ref('tip_pools/' + id).set({
     id:        id,
@@ -754,107 +639,19 @@ function handleSave() {
     totalTips: amount,
     savedAt:   new Date().toISOString()
   }).then(() => {
-    showToast(editId ? '✏️ קופה עודכנה' : '✅ קופה נשמרה', 'success');
+    showToast('✅ קופה נשמרה', 'success');
     document.getElementById('amountInput').value = '';
-    cancelEdit();
     updateBtn();
   }).catch(() => showToast('שגיאה בשמירה', 'error'));
 }
 
-function startEdit(id) {
-  const p = pools[id];
-  if (!p) return;
-  editId = p.id;
-  document.getElementById('dateInput').value   = p.date;
-  document.getElementById('amountInput').value = p.totalTips;
-  selectShift(p.shiftType);
-  document.getElementById('cancelBtn').style.display = 'block';
-  document.getElementById('formTitle').textContent   = '✏️ עריכת רשומה';
-  updateBtn();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function cancelEdit() {
-  editId = null;
-  document.getElementById('amountInput').value = '';
-  document.getElementById('cancelBtn').style.display = 'none';
-  document.getElementById('formTitle').textContent   = '➕ רשום קופה חדשה';
-  updateBtn();
-}
-
-function deleteEntry(id) {
-  confirmCallback = () => {
-    setSyncState('syncing');
-    db.ref('tip_pools/' + id).remove()
-      .then(() => showToast('🗑️ רשומה נמחקה', 'success'))
-      .catch(() => showToast('שגיאה במחיקה', 'error'));
-  };
-  document.getElementById('confirmOverlay').classList.add('open');
-}
-
-document.getElementById('confirmYes').onclick = () => {
-  document.getElementById('confirmOverlay').classList.remove('open');
-  if (confirmCallback) { confirmCallback(); confirmCallback = null; }
-};
-document.getElementById('confirmNo').onclick = () => {
-  document.getElementById('confirmOverlay').classList.remove('open');
-  confirmCallback = null;
-};
-
 // ─── Render ──────────────────────────────────────────────────
 function render() {
   const month = thisMonth();
-  const arr   = Object.values(pools).sort((a, b) => b.date.localeCompare(a.date));
-  const total = arr.filter(p => p.date.startsWith(month)).reduce((s, p) => s + p.totalTips, 0);
-
+  const total = Object.values(pools)
+    .filter(p => p.date.startsWith(month))
+    .reduce((s, p) => s + p.totalTips, 0);
   document.getElementById('monthTotal').textContent = '₪' + f0(total);
-
-  const hist = document.getElementById('history');
-
-  if (!arr.length) {
-    hist.innerHTML = `
-      <div class="empty">
-        <div class="icon">😭</div>
-        <div class="msg">אין רשומות עדיין<br><small style="color:var(--dim)">הוסף את הקופה הראשונה</small></div>
-      </div>`;
-    return;
-  }
-
-  const byDate = {};
-  arr.forEach(p => {
-    if (!byDate[p.date]) byDate[p.date] = [];
-    byDate[p.date].push(p);
-  });
-
-  hist.innerHTML = Object.entries(byDate).map(([d, ps]) => {
-    const dt = ps.reduce((s, p) => s + p.totalTips, 0);
-    return `
-      <div class="date-group">
-        <div class="date-header">
-          <span>${heDate(d)}</span>
-          <span class="date-total">₪${f0(dt)}</span>
-        </div>
-        ${ps.map(pool => {
-          const sc = SHIFT[pool.shiftType] || SHIFT.morning;
-          const time = new Date(pool.savedAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-          return `
-            <div class="pool-row" style="border-right-color:${sc.color}">
-              <span class="pool-emoji">${sc.emoji}</span>
-              <div class="pool-info">
-                <div class="pool-name">
-                  <span>${sc.label}</span>
-                  <span class="pool-amount" style="color:${sc.color}">₪${f0(pool.totalTips)}</span>
-                </div>
-                <div class="pool-time">נשמר ${time}</div>
-              </div>
-              <div class="action-btns">
-                <button class="icon-btn" onclick="startEdit(${pool.id})">✏️</button>
-                <button class="icon-btn del" onclick="deleteEntry(${pool.id})">🗑️</button>
-              </div>
-            </div>`;
-        }).join('')}
-      </div>`;
-  }).join('');
 }
 
 // ─── Toast ───────────────────────────────────────────────────
