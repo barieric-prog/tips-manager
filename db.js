@@ -1,72 +1,86 @@
-// localStorage-backed database — drop-in Firebase Realtime Database API
-// Syncs across same-browser tabs via 'storage' events; works fully offline.
+// Firebase Realtime Database — REST API with Server-Sent Events
+// Replaces localStorage shim. Data syncs across all devices in real time.
 
-function _lsGet(k) {
-  try { return JSON.parse(localStorage.getItem(k) || '{}'); } catch { return {}; }
-}
-function _lsSave(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
+const _DB = 'https://tips-manager-25d5c-default-rtdb.firebaseio.com';
 
-function _getPath(obj, parts) {
-  return parts.reduce((o, k) => (o != null ? o[k] : null), obj) ?? null;
-}
-function _setPath(obj, parts, val) {
-  if (!parts.length) return val;
-  const out = Object.assign({}, obj || {});
-  const k = parts[0];
-  if (parts.length === 1) { if (val === null) delete out[k]; else out[k] = val; }
-  else out[k] = _setPath(out[k], parts.slice(1), val);
-  return out;
+const _sources   = {};   // path → EventSource
+const _listeners = {};   // path → [callback]
+
+function _url(path) {
+  return `${_DB}/${path}.json`;
 }
 
-// Per-collection callbacks (for same-tab sync after writes)
-const _subs = {};
+function _fetchVal(path, cb, errCb) {
+  fetch(_url(path))
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(data => cb({ val: () => data }))
+    .catch(e => { if (errCb) errCb(e); });
+}
 
-// Cross-tab sync via Web Storage events
-window.addEventListener('storage', e => {
-  (_subs[e.key] || []).forEach(({ sub, cb }) => {
-    const data = _lsGet(e.key);
-    cb({ val: () => _getPath(data, sub ? sub.split('/') : []) });
-  });
-});
+function _notifyAll(path, data) {
+  (_listeners[path] || []).forEach(cb => cb({ val: () => data }));
+}
 
 class _Ref {
   constructor(path) {
-    const parts = path.split('/');
-    this._c = parts[0];                    // collection (localStorage key)
-    this._s = parts.slice(1).join('/');    // sub-path within collection
+    this._p = path.replace(/^\/+|\/+$/g, '');
   }
 
-  _snap() {
-    const data = _lsGet(this._c);
-    const parts = this._s ? this._s.split('/') : [];
-    return { val: () => _getPath(data, parts) };
-  }
-
-  on(event, cb) {
+  on(event, cb, errCb) {
     if (event !== 'value') return;
-    if (!_subs[this._c]) _subs[this._c] = [];
-    _subs[this._c].push({ sub: this._s, cb });
-    cb(this._snap()); // immediate callback with current data
+
+    if (!_listeners[this._p]) _listeners[this._p] = [];
+    _listeners[this._p].push(cb);
+
+    // If stream already open, just do one immediate read for new subscriber
+    if (_sources[this._p]) {
+      _fetchVal(this._p, cb, errCb);
+      return;
+    }
+
+    // Open SSE stream — Firebase delivers current value as first 'put' event
+    const p = this._p;
+    const es = new EventSource(_url(p));
+    _sources[p] = es;
+
+    es.addEventListener('put', e => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.path === '/') {
+          _notifyAll(p, msg.data);
+        } else {
+          // Sub-path change — re-fetch full node to stay consistent
+          fetch(_url(p)).then(r => r.json()).then(d => _notifyAll(p, d)).catch(() => {});
+        }
+      } catch {}
+    });
+
+    es.addEventListener('patch', () => {
+      fetch(_url(p)).then(r => r.json()).then(d => _notifyAll(p, d)).catch(() => {});
+    });
+
+    es.onerror = () => { if (errCb) errCb(); };
   }
 
-  once(event, cb) {
+  once(event, cb, errCb) {
     if (event !== 'value') return;
-    cb(this._snap());
+    _fetchVal(this._p, cb, errCb);
   }
 
   set(val) {
-    const parts = this._s ? this._s.split('/') : [];
-    const updated = _setPath(_lsGet(this._c), parts, val);
-    _lsSave(this._c, updated);
-    (_subs[this._c] || []).forEach(({ sub, cb }) =>
-      cb({ val: () => _getPath(updated, sub ? sub.split('/') : []) })
-    );
-    return Promise.resolve();
+    return fetch(_url(this._p), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(val === undefined ? null : val)
+    }).then(r => { if (!r.ok) return Promise.reject('write failed'); });
   }
 
   update(patch) {
-    const cur = this._snap().val() || {};
-    return this.set(Object.assign({}, cur, patch));
+    return fetch(_url(this._p), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch)
+    }).then(r => { if (!r.ok) return Promise.reject('update failed'); });
   }
 
   remove() { return this.set(null); }

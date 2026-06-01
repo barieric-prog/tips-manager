@@ -1,4 +1,4 @@
-const CACHE = 'tips-v5';
+const CACHE = 'tips-v6';
 
 const SHELL = [
   './',
@@ -15,6 +15,7 @@ const NETWORK_DOMAINS = [
   'api.github.com',
   'firebasedatabase.app',
   'firebaseapp.com',
+  'firebaseio.com',
   'googleapis.com',
   'gstatic.com',
 ];

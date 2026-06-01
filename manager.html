@@ -514,10 +514,10 @@ input[type=range] {
 
     <!-- Cashier PIN -->
     <div class="settings-section">
-      <div class="settings-title">🔒 קוד קופאי/ת</div>
+      <div class="settings-title">🔒 קוד אחמש</div>
       <div class="settings-row">
-        <div style="font-size:13px;font-weight:700;margin-bottom:4px">קוד גישה נוכחי לקופאי</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:14px">הקוד שהקופאי/ת מכניסים בכניסה לממשק הקופה</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px">קוד גישה נוכחי לאחמש</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:14px">הקוד שהאחמש מכניס בכניסה לממשק</div>
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
           <div id="currentPinDisplay" style="font-size:32px;font-weight:900;color:var(--pink);letter-spacing:10px">••••</div>
           <button onclick="togglePinVisibility()" id="togglePinBtn"
@@ -526,7 +526,7 @@ input[type=range] {
           </button>
         </div>
         <div style="border-top:1px solid var(--border);padding-top:14px">
-          <label>קוד חדש לקופאי (4 ספרות)</label>
+          <label>קוד חדש לאחמש (4 ספרות)</label>
           <input type="password" id="newPinInput" placeholder="••••" maxlength="4" inputmode="numeric"
             style="direction:ltr;letter-spacing:10px;font-size:24px;font-weight:900;text-align:center"/>
           <label>אישור קוד</label>
@@ -690,20 +690,44 @@ function calcDist(pool) {
   };
 }
 
-// ─── Manager PIN Auth (localStorage — synchronous, no Firebase needed) ──────
+// ─── Manager PIN Auth ────────────────────────────────────────
 let mgrPin       = '';
-let storedMgrPin = localStorage.getItem('mgr_pin') || null;
-let firstSetup   = !storedMgrPin;
+let storedMgrPin = null;
+let firstSetup   = true;
 let firstTemp    = '';
-const pinReady   = true;
+
+function _setupPinGate(pin) {
+  storedMgrPin = pin;
+  firstSetup   = !storedMgrPin;
+  document.querySelector('.numpad').style.display = 'grid';
+  if (firstSetup) {
+    document.getElementById('pinGateTitle').textContent = 'הגדר קוד מנהל';
+    document.getElementById('pinGateSub').textContent   = 'בחר קוד 4 ספרות לכניסה';
+  } else {
+    document.getElementById('pinGateSub').textContent   = 'הכנס קוד גישה';
+  }
+}
 
 if (sessionStorage.getItem('managerAuth') === 'ok') {
   showApp();
-} else if (firstSetup) {
-  document.getElementById('pinGateTitle').textContent = 'הגדר קוד מנהל';
-  document.getElementById('pinGateSub').textContent   = 'בחר קוד 4 ספרות לכניסה';
 } else {
-  document.getElementById('pinGateSub').textContent   = 'הכנס קוד גישה';
+  // Hide numpad while loading PIN from Firebase
+  document.querySelector('.numpad').style.display = 'none';
+  document.getElementById('pinGateSub').textContent = 'טוען...';
+
+  db.ref('settings/managerPin').once('value', snap => {
+    const fbPin = snap.val();
+    if (fbPin) {
+      localStorage.setItem('mgr_pin', fbPin);
+      _setupPinGate(fbPin);
+    } else {
+      // No PIN in Firebase yet — check localStorage fallback
+      _setupPinGate(localStorage.getItem('mgr_pin') || null);
+    }
+  }, () => {
+    // Firebase unreachable — fall back to localStorage
+    _setupPinGate(localStorage.getItem('mgr_pin') || null);
+  });
 }
 
 function mgrDigit(d) {
@@ -732,6 +756,7 @@ function handleFirstSetup() {
     document.getElementById('pinGateSub').textContent = 'הכנס שוב לאישור';
   } else if (mgrPin === firstTemp) {
     localStorage.setItem('mgr_pin', mgrPin);
+    db.ref('settings/managerPin').set(mgrPin).catch(() => {});
     storedMgrPin = mgrPin;
     firstSetup   = false;
     sessionStorage.setItem('managerAuth', 'ok');
@@ -1575,6 +1600,7 @@ function saveMgrPin() {
   if (!/^\d{4}$/.test(np)) { showToast('הקוד חייב להיות 4 ספרות', 'error'); return; }
   if (np !== cp)             { showToast('הקודים אינם תואמים', 'error'); return; }
   localStorage.setItem('mgr_pin', np);
+  db.ref('settings/managerPin').set(np).catch(() => {});
   storedMgrPin = np;
   showToast('🔐 קוד מנהל עודכן!', 'success');
   document.getElementById('newMgrPinInput').value    = '';
